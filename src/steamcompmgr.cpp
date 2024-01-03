@@ -3097,8 +3097,8 @@ static bool is_good_override_candidate( steamcompmgr_win_t *override, steamcompm
 	if ( !focus )
 		return false;
 
-	return override != focus && override->GetGeometry().nX >= 0 && override->GetGeometry().nY >= 0;
-} 
+	return override != focus && override->xwayland().a.x >= 0 && override->xwayland().a.y >= 0;
+}
 
 static bool
 pick_primary_focus_and_override(focus_t *out, Window focusControlWindow, const std::vector<steamcompmgr_win_t*>& vecPossibleFocusWindows, bool globalFocus, const std::vector<uint32_t>& ctxFocusControlAppIDs)
