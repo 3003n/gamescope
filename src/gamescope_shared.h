@@ -62,6 +62,22 @@ enum GamescopePanelOrientation
 	GAMESCOPE_PANEL_ORIENTATION_AUTO,
 };
 
+enum GamescopePanelExternalOrientation
+{
+	GAMESCOPE_PANEL_EXTERNAL_ORIENTATION_0,	/* NORMAL */
+	GAMESCOPE_PANEL_EXTERNAL_ORIENTATION_270,	/* RIGHT */
+	GAMESCOPE_PANEL_EXTERNAL_ORIENTATION_90,	/* LEFT */
+	GAMESCOPE_PANEL_EXTERNAL_ORIENTATION_180,	/* UPSIDE DOWN */
+	GAMESCOPE_PANEL_EXTERNAL_ORIENTATION_AUTO,
+};
+
+enum GamescopePanelType
+{
+	GAMESCOPE_PANEL_TYPE_INTERNAL,
+	GAMESCOPE_PANEL_TYPE_EXTERNAL,
+	GAMESCOPE_PANEL_TYPE_AUTO,
+};
+
 // Disable partial composition for now until we get
 // composite priorities working in libliftoff + also
 // use the proper libliftoff composite plane system.
