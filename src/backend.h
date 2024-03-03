@@ -88,6 +88,11 @@ namespace gamescope
         virtual const char *GetName() const = 0;
         virtual const char *GetMake() const = 0;
         virtual const char *GetModel() const = 0;
+
+        virtual bool DisplayTypeInternal() const
+        { 
+            return GetScreenType() == GAMESCOPE_SCREEN_TYPE_INTERNAL; 
+        }
     };
 
     class INestedHints
