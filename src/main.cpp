@@ -78,6 +78,7 @@ const struct option *gamescope_options = (struct option[]){
 	{ "default-touch-mode", required_argument, nullptr, 0 },
 	{ "generate-drm-mode", required_argument, nullptr, 0 },
 	{ "generate-drm-mode-custom-dir", required_argument, nullptr, 0 },
+	{ "custom-refresh-rates", required_argument, nullptr, 0 },
 	{ "immediate-flips", no_argument, nullptr, 0 },
 	{ "adaptive-sync", no_argument, nullptr, 0 },
 	{ "framerate-limit", required_argument, nullptr, 0 },
@@ -186,6 +187,7 @@ const char usage[] =
 	"  --hdr-itm-target-nits          set the target luminace of the inverse tone mapping process.\n"
 	"                                 Default: 1000 nits, Max: 10000 nits\n"
 	"  --framerate-limit              Set a simple framerate limit. Used as a divisor of the refresh rate, rounds down eg 60 / 59 -> 60fps, 60 / 25 -> 30fps. Default: 0, disabled.\n"
+	"  --custom-refresh-rates         Set custom refresh rates for the output. eg: 60,120,144-165\n"
 	"\n"
 	"Nested mode options:\n"
 	"  -o, --nested-unfocused-refresh game refresh rate when unfocused\n"
@@ -304,6 +306,8 @@ uint32_t g_preferDeviceID = 0;
 
 pthread_t g_mainThread;
 
+std::vector<uint32_t> g_customRefreshRates;
+
 static void steamCompMgrThreadRun(int argc, char **argv);
 
 static std::string build_optstring(const struct option *options)
@@ -343,6 +347,32 @@ static gamescope::GamescopeModeGeneration parse_gamescope_mode_generation( const
 		fprintf( stderr, "gamescope: invalid value for --generate-drm-mode\n" );
 		exit(1);
 	}
+}
+
+// eg: 60,120,144-165
+static std::vector<uint32_t> parse_custom_refresh_rates( const char *str )
+{
+	std::vector<uint32_t> rates;
+	char *token = strtok( strdup(str), ",");
+	while (token)
+	{
+		char *dash = strchr(token, '-');
+		if (dash)
+		{
+			uint32_t start = atoi(token);
+			uint32_t end = atoi(dash + 1);
+			for (uint32_t i = start; i <= end; i++)
+			{
+				rates.push_back(i);
+			}
+		}
+		else
+		{
+			rates.push_back(atoi(token));
+		}
+		token = strtok(nullptr, ",");
+	}
+	return rates;
 }
 
 GamescopePanelType g_eGamescopePanelType = GAMESCOPE_PANEL_TYPE_AUTO;
@@ -685,6 +715,8 @@ int main(int argc, char **argv)
 					g_eGamescopeModeGeneration = parse_gamescope_mode_generation( optarg );
 				} else if (strcmp(opt_name, "generate-drm-mode-custom-dir") == 0) {
 					initialize_custom_modes( optarg );
+				} else if (strcmp(opt_name, "custom-refresh-rates") == 0) {
+					g_customRefreshRates = parse_custom_refresh_rates( optarg );
 				} else if (strcmp(opt_name, "force-orientation") == 0) {
 					g_DesiredInternalOrientation = force_orientation( optarg );
 				} else if (strcmp(opt_name, "force-external-orientation") == 0) {
