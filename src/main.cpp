@@ -123,6 +123,8 @@ const struct option *gamescope_options = (struct option[]){
 	{ "disable-xres", no_argument, nullptr, 'x' },
 	{ "fade-out-duration", required_argument, nullptr, 0 },
 	{ "force-orientation", required_argument, nullptr, 0 },
+	{ "force-external-orientation", required_argument, nullptr, 0 },
+	{ "force-panel-type", required_argument, nullptr, 0 },
 	{ "force-windows-fullscreen", no_argument, nullptr, 0 },
 
 	{ "disable-color-management", no_argument, nullptr, 0 },
@@ -173,6 +175,8 @@ const char usage[] =
 	"  --xwayland-count               create N xwayland servers\n"
 	"  --prefer-vk-device             prefer Vulkan device for compositing (ex: 1002:7300)\n"
 	"  --force-orientation            rotate the internal display (left, right, normal, upsidedown)\n"
+	"  --force-external-orientation   rotate the external display (left, right, normal, upsidedown)\n"
+	"  --force-panel-type             force gamescope to treat the display as either internal or external\n"
 	"  --force-windows-fullscreen     force windows inside of gamescope to be the size of the nested display (fullscreen)\n"
 	"  --cursor-scale-height          if specified, sets a base output height to linearly scale the cursor against.\n"
 	"  --hdr-enabled                  enable HDR output (needs Gamescope WSI layer enabled for support from clients)\n"
@@ -343,6 +347,19 @@ static gamescope::GamescopeModeGeneration parse_gamescope_mode_generation( const
 	}
 }
 
+GamescopePanelType g_eGamescopePanelType = GAMESCOPE_PANEL_TYPE_AUTO;
+static GamescopePanelType force_panel_type(const char *str)
+{
+	if (strcmp(str, "internal") == 0) {
+		return GAMESCOPE_PANEL_TYPE_INTERNAL;
+	} else if (strcmp(str, "external") == 0) {
+		return GAMESCOPE_PANEL_TYPE_EXTERNAL;
+	} else {
+		fprintf( stderr, "gamescope: invalid value for --force-panel-type\n" );
+		exit(1);
+	}
+}
+
 GamescopePanelOrientation g_DesiredInternalOrientation = GAMESCOPE_PANEL_ORIENTATION_AUTO;
 static GamescopePanelOrientation force_orientation(const char *str)
 {
@@ -399,6 +416,23 @@ static enum GamescopeUpscaleFilter parse_upscaler_filter(const char *str)
 struct sigaction handle_signal_action = {};
 extern std::mutex g_ChildPidMutex;
 extern std::vector<pid_t> g_ChildPids;
+
+GamescopePanelExternalOrientation g_eGamescopePanelExternalOrientation = GAMESCOPE_PANEL_EXTERNAL_ORIENTATION_AUTO;
+static GamescopePanelExternalOrientation force_external_orientation(const char *str)
+{
+	if (strcmp(str, "normal") == 0) {
+		return GAMESCOPE_PANEL_EXTERNAL_ORIENTATION_0;
+	} else if (strcmp(str, "right") == 0) {
+		return GAMESCOPE_PANEL_EXTERNAL_ORIENTATION_270;
+	} else if (strcmp(str, "left") == 0) {
+		return GAMESCOPE_PANEL_EXTERNAL_ORIENTATION_90;
+	} else if (strcmp(str, "upsidedown") == 0) {
+		return GAMESCOPE_PANEL_EXTERNAL_ORIENTATION_180;
+	} else {
+		fprintf( stderr, "gamescope: invalid value for --force-external-orientation\n" );
+		exit(1);
+	}
+}
 
 static void handle_signal( int sig )
 {
@@ -657,6 +691,10 @@ int main(int argc, char **argv)
 					initialize_custom_modes( optarg );
 				} else if (strcmp(opt_name, "force-orientation") == 0) {
 					g_DesiredInternalOrientation = force_orientation( optarg );
+				} else if (strcmp(opt_name, "force-external-orientation") == 0) {
+					g_eGamescopePanelExternalOrientation = force_external_orientation( optarg );
+				} else if (strcmp(opt_name, "force-panel-type") == 0) {
+					g_eGamescopePanelType = force_panel_type( optarg );
 				} else if (strcmp(opt_name, "sharpness") == 0 ||
 						   strcmp(opt_name, "fsr-sharpness") == 0) {
 					g_upscaleFilterSharpness = atoi( optarg );
