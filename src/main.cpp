@@ -276,6 +276,8 @@ bool g_bForceRelativeMouse = false;
 
 bool g_bGrabbed = false;
 
+bool g_bExternalForced = false;
+
 float g_mouseSensitivity = 1.0;
 
 GamescopeUpscaleFilter g_upscaleFilter = GamescopeUpscaleFilter::LINEAR;
@@ -421,12 +423,16 @@ GamescopePanelExternalOrientation g_eGamescopePanelExternalOrientation = GAMESCO
 static GamescopePanelExternalOrientation force_external_orientation(const char *str)
 {
 	if (strcmp(str, "normal") == 0) {
+		g_bExternalForced = true;
 		return GAMESCOPE_PANEL_EXTERNAL_ORIENTATION_0;
 	} else if (strcmp(str, "right") == 0) {
+		g_bExternalForced = true;
 		return GAMESCOPE_PANEL_EXTERNAL_ORIENTATION_270;
 	} else if (strcmp(str, "left") == 0) {
+		g_bExternalForced = true;
 		return GAMESCOPE_PANEL_EXTERNAL_ORIENTATION_90;
 	} else if (strcmp(str, "upsidedown") == 0) {
+		g_bExternalForced = true;
 		return GAMESCOPE_PANEL_EXTERNAL_ORIENTATION_180;
 	} else {
 		fprintf( stderr, "gamescope: invalid value for --force-external-orientation\n" );
