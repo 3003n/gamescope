@@ -16,6 +16,7 @@ namespace gamescope
 	{
 		GAMESCOPE_MODE_GENERATE_CVT,
 		GAMESCOPE_MODE_GENERATE_FIXED,
+		GAMESCOPE_MODE_GENERATE_CUSTOM,
 	};
 
 	enum GamescopeScreenType
