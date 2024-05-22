@@ -576,6 +576,12 @@ static constexpr uint32_t s_kSteamDeckOLEDRates[] =
 	90, 
 };
 
+static uint32_t s_kLegionGoDisplayRates[] =
+{
+	60,
+	144,
+};
+
 static void update_connector_display_info_wl(struct drm_t *drm)
 {
 	wlserver_lock();
@@ -2192,6 +2198,10 @@ namespace gamescope
 				m_Mutable.eKnownDisplay = GAMESCOPE_KNOWN_DISPLAY_STEAM_DECK_LCD;
 				m_Mutable.ValidDynamicRefreshRates = std::span( s_kSteamDeckLCDRates );
 			}
+		}
+		else if ( m_Mutable.szMakePNP == "LEN"sv && m_Mutable.szModel == "Go Display"sv )
+		{
+			m_Mutable.ValidDynamicRefreshRates = std::span( s_kLegionGoDisplayRates );
 		}
 
 		// Colorimetry
