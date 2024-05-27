@@ -546,6 +546,8 @@ bool g_bSupportsSyncObjs = false;
 extern gamescope::GamescopeModeGeneration g_eGamescopeModeGeneration;
 extern GamescopePanelOrientation g_DesiredInternalOrientation;
 
+extern std::vector<uint32_t> g_customRefreshRates;
+
 extern GamescopePanelType g_eGamescopePanelType;
 extern GamescopePanelExternalOrientation g_eGamescopePanelExternalOrientation;
 
@@ -2171,6 +2173,10 @@ namespace gamescope
 			if (fr.size()) {
 				m_Mutable.ValidDynamicRefreshRates = fr;
 			}
+		}
+		else if ( !g_customRefreshRates.empty() && DisplayTypeInternal() )
+		{
+			m_Mutable.ValidDynamicRefreshRates = std::span( g_customRefreshRates );
 		}
 		else if ( bSteamDeckDisplay )
 		{
