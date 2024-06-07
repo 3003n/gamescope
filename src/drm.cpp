@@ -2112,15 +2112,24 @@ namespace gamescope
 	void CDRMConnector::ParseEDID()
 	{
 		if ( !GetProperties().EDID )
+		{
+			drm_log.errorf( "No EDID property for connector: %s", m_Mutable.szName );
 			return;
+		}
 
 		uint64_t ulBlobId = GetProperties().EDID->GetCurrentValue();
 		if ( !ulBlobId )
+		{
+			drm_log.errorf( "Invalid EDID blob for connector: %s", m_Mutable.szName );
 			return;
+		}
 
 		drmModePropertyBlobRes *pBlob = drmModeGetPropertyBlob( g_DRM.fd, ulBlobId );
 		if ( !pBlob )
+		{
+			drm_log.errorf( "Failed to get EDID blob for connector: %s", m_Mutable.szName );
 			return;
+		}
 		defer( drmModeFreePropertyBlob( pBlob ) );
 
 		const uint8_t *pDataPointer = reinterpret_cast<const uint8_t *>( pBlob->data );
@@ -2164,6 +2173,9 @@ namespace gamescope
 
 		m_ChosenPanelType = g_eGamescopePanelType;
 
+		drm_log.infof( ">>>>>>>>>>>>> g_customRefreshRates: %lu, DisplayTypeInternal: %d", g_customRefreshRates.size(), DisplayTypeInternal() );
+		
+
 		const bool bSteamDeckDisplay =
 			( m_Mutable.szMakePNP == "WLC"sv && m_Mutable.szModel == "ANX7530 U"sv ) ||
 			( m_Mutable.szMakePNP == "ANX"sv && m_Mutable.szModel == "ANX7530 U"sv ) ||
@@ -2181,6 +2193,7 @@ namespace gamescope
 		}
 		else if ( !g_customRefreshRates.empty() && DisplayTypeInternal() )
 		{
+			drm_log.infof( ">>>>>>>>>>>>>>>>>> Using custom refresh rates" );
 			m_Mutable.ValidDynamicRefreshRates = std::span( g_customRefreshRates );
 		}
 		else if ( bSteamDeckDisplay )
