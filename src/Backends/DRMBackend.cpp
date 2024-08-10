@@ -295,6 +295,7 @@ namespace gamescope
 		const char *GetName() const override { return m_Mutable.szName; }
 		const char *GetMake() const override { return m_Mutable.pszMake; }
 		const char *GetModel() const override { return m_Mutable.szModel; }
+		const char *GetMakePNP() const { return m_Mutable.szMakePNP; }
 		uint32_t GetPossibleCRTCMask() const { return m_Mutable.uPossibleCRTCMask; }
 		std::span<const uint32_t> GetValidDynamicRefreshRates() const override { return m_Mutable.ValidDynamicRefreshRates; }
 		GamescopeKnownDisplays GetKnownDisplayType() const { return m_Mutable.eKnownDisplay; }
@@ -2130,7 +2131,15 @@ namespace gamescope
 			( m_Mutable.szMakePNP == "VLV"sv && m_Mutable.szModel == "Jupiter"sv ) ||
 			( m_Mutable.szMakePNP == "VLV"sv && m_Mutable.szModel == "Galileo"sv );
 
-		if ( bSteamDeckDisplay )
+		if (g_eGamescopeModeGeneration == GAMESCOPE_MODE_GENERATE_CUSTOM)
+		{
+			m_Mutable.eKnownDisplay = GAMESCOPE_KNOWN_DISPLAY_UNKNOWN;
+			auto fr = get_custom_framerates(m_Mutable.szMakePNP, m_Mutable.szModel);
+			if (fr.size()) {
+				m_Mutable.ValidDynamicRefreshRates = fr;
+			}
+		}
+		else if ( bSteamDeckDisplay )
 		{
 			static constexpr uint32_t kPIDGalileoSDC = 0x3003;
 			static constexpr uint32_t kPIDGalileoBOE = 0x3004;
@@ -3041,6 +3050,12 @@ bool drm_set_refresh( struct drm_t *drm, int refresh )
 			{
 				const drmModeModeInfo *preferred_mode = find_mode(connector, 0, 0, 0);
 				generate_fixed_mode( &mode, preferred_mode, refresh, drm->pConnector->GetKnownDisplayType() );
+				break;
+			}
+		case gamescope::GAMESCOPE_MODE_GENERATE_CUSTOM:
+			{
+				const drmModeModeInfo *preferred_mode = find_mode(connector, 0, 0, 0);
+				generate_custom_mode( &mode, preferred_mode, refresh, drm->pConnector->GetMakePNP(), drm->pConnector->GetModel() );
 				break;
 			}
 		}
