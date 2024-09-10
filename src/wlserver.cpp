@@ -2484,8 +2484,12 @@ static void apply_touchscreen_orientation(double *x, double *y )
 	double tx = 0;
 	double ty = 0;
 
-	// Use internal screen always for orientation purposes.
-	switch ( GetBackend()->GetConnector( gamescope::GAMESCOPE_SCREEN_TYPE_INTERNAL )->GetCurrentOrientation() )
+	auto orientation = GAMESCOPE_PANEL_ORIENTATION_AUTO;
+	if ( GetBackend() && GetBackend()->GetCurrentConnector(  ) )
+	{
+		orientation = GetBackend()->GetCurrentConnector()->GetCurrentOrientation();
+	}
+	switch ( orientation )
 	{
 		default:
 		case GAMESCOPE_PANEL_ORIENTATION_AUTO:
@@ -2510,6 +2514,8 @@ static void apply_touchscreen_orientation(double *x, double *y )
 	*x = tx;
 	*y = ty;
 }
+
+bool g_bTrackpadTouchExternalDisplay = false;
 
 void wlserver_touchmotion( double x, double y, int touch_id, uint32_t time, bool bAlwaysWarpCursor )
 {
