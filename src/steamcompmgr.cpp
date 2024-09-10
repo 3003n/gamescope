@@ -358,6 +358,8 @@ bool g_bForceHDR10OutputDebug = false;
 gamescope::ConVar<bool> cv_hdr_enabled{ "hdr_enabled", false, "Whether or not HDR is enabled if it is available." };
 bool g_bHDRItmEnable = false;
 int g_nCurrentRefreshRate_CachedValue = 0;
+gamescope::ConVar<bool> cv_bypass_steam_resolution{ "bypass_steam_resolution", false, "Workaround the 720p/800p limits Steam uses for games" };
+
 
 static void
 update_color_mgmt()
@@ -5421,6 +5423,13 @@ handle_property_notify(xwayland_ctx_t *ctx, XPropertyEvent *ev)
 			size_t server_idx = size_t{ xwayland_mode_ctl[ 0 ] };
 			int width = xwayland_mode_ctl[ 1 ];
 			int height = xwayland_mode_ctl[ 2 ];
+
+			if ( g_nOutputWidth != 1280 && width == 1280 && cv_bypass_steam_resolution )
+			{
+				width = g_nOutputWidth;
+				height = g_nOutputHeight;
+			}
+
 			bool allowSuperRes = !!xwayland_mode_ctl[ 3 ];
 
 			if ( !allowSuperRes )
@@ -7404,6 +7413,8 @@ steamcompmgr_main(int argc, char **argv)
 					bForceWindowsFullscreen = true;
 				} else if (strcmp(opt_name, "hdr-enabled") == 0) {
 					cv_hdr_enabled = true;
+				} else if (strcmp(opt_name, "bypass-steam-resolution") == 0) {
+					cv_bypass_steam_resolution = true;
 				} else if (strcmp(opt_name, "hdr-debug-force-support") == 0) {
 					g_bForceHDRSupportDebug = true;
  				} else if (strcmp(opt_name, "hdr-debug-force-output") == 0) {
