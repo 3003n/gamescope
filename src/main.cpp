@@ -110,6 +110,8 @@ const struct option *gamescope_options = (struct option[]){
 
 	// wlserver options
 	{ "xwayland-count", required_argument, nullptr, 0 },
+	{ "touch-gestures", no_argument, nullptr, 0 },
+
 
 	// steamcompmgr options
 	{ "cursor", required_argument, nullptr, 0 },
@@ -202,6 +204,7 @@ const char usage[] =
 	"  -C, --hide-cursor-delay        hide cursor image after delay\n"
 	"  -e, --steam                    enable Steam integration\n"
 	"  --bypass-steam-resolution      bypass Steam's default 720p/800p default resolution\n"
+	"  --touch-gestures               enable touch gestures for Steam menus\n"
 	"  --xwayland-count               create N xwayland servers\n"
 	"  --prefer-vk-device             prefer Vulkan device for compositing (ex: 1002:7300)\n"
 	"  --force-orientation            rotate the internal display (left, right, normal, upsidedown)\n"
@@ -808,6 +811,8 @@ int main(int argc, char **argv)
 					g_bDebugLayers = true;
 				} else if (strcmp(opt_name, "disable-color-management") == 0) {
 					g_bForceDisableColorMgmt = true;
+				} else if (strcmp(opt_name, "touch-gestures") == 0) {
+					cv_touch_gestures = true;
 				} else if (strcmp(opt_name, "xwayland-count") == 0) {
 					g_nXWaylandCount = atoi( optarg );
 				} else if (strcmp(opt_name, "composite-debug") == 0) {
