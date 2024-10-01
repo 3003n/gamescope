@@ -328,7 +328,7 @@ namespace gamescope
 			return GAMESCOPE_SCREEN_TYPE_EXTERNAL;
 		}
 
-		bool GetDisplayTypeInternal()
+		bool DisplayTypeInternal() const override
 		{
 			return m_pConnector->connector_type == DRM_MODE_CONNECTOR_eDP ||
 						m_pConnector->connector_type == DRM_MODE_CONNECTOR_LVDS ||
@@ -2045,7 +2045,7 @@ namespace gamescope
 	{
 		if ( this->GetScreenType() == GAMESCOPE_SCREEN_TYPE_EXTERNAL &&
 			g_eGamescopePanelExternalOrientation != GAMESCOPE_PANEL_EXTERNAL_ORIENTATION_AUTO &&
-			this->GetDisplayTypeInternal() )
+			this->DisplayTypeInternal() )
 		{
 			switch ( g_eGamescopePanelExternalOrientation )
 			{
