@@ -291,6 +291,8 @@ namespace gamescope
 		GamescopeKnownDisplays GetKnownDisplayType() const { return m_Mutable.eKnownDisplay; }
 		const displaycolorimetry_t& GetDisplayColorimetry() const { return m_Mutable.DisplayColorimetry; }
 
+		// GamescopePanelType 
+
 		std::span<const uint8_t> GetRawEDID() const override { return std::span<const uint8_t>{ m_Mutable.EdidData.begin(), m_Mutable.EdidData.end() }; }
 
 		bool SupportsHDR10() const
@@ -309,12 +311,28 @@ namespace gamescope
 
 		GamescopeScreenType GetScreenType() const override
 		{
-			if ( m_pConnector->connector_type == DRM_MODE_CONNECTOR_eDP ||
-				 m_pConnector->connector_type == DRM_MODE_CONNECTOR_LVDS ||
-				 m_pConnector->connector_type == DRM_MODE_CONNECTOR_DSI )
-				return GAMESCOPE_SCREEN_TYPE_INTERNAL;
+			switch ( m_ChosenPanelType )
+			{
+				case GAMESCOPE_PANEL_TYPE_INTERNAL:
+					return GAMESCOPE_SCREEN_TYPE_INTERNAL;
+				case GAMESCOPE_PANEL_TYPE_EXTERNAL:
+					return GAMESCOPE_SCREEN_TYPE_EXTERNAL;
+				case GAMESCOPE_PANEL_TYPE_AUTO:
+					if ( m_pConnector->connector_type == DRM_MODE_CONNECTOR_eDP ||
+				 		m_pConnector->connector_type == DRM_MODE_CONNECTOR_LVDS ||
+				 		m_pConnector->connector_type == DRM_MODE_CONNECTOR_DSI )
+						return GAMESCOPE_SCREEN_TYPE_INTERNAL;
+					break;
+			}
 
 			return GAMESCOPE_SCREEN_TYPE_EXTERNAL;
+		}
+
+		bool GetDisplayTypeInternal()
+		{
+			return m_pConnector->connector_type == DRM_MODE_CONNECTOR_eDP ||
+						m_pConnector->connector_type == DRM_MODE_CONNECTOR_LVDS ||
+				 		m_pConnector->connector_type == DRM_MODE_CONNECTOR_DSI;
 		}
 
 		GamescopePanelOrientation GetCurrentOrientation() const override
@@ -373,6 +391,8 @@ namespace gamescope
 
 		void UpdateEffectiveOrientation( const drmModeModeInfo *pMode );
 
+		void SetPanelType( GamescopePanelType ePanelType );
+
 	private:
 		void ParseEDID();
 
@@ -399,6 +419,8 @@ namespace gamescope
 		} m_Mutable;
 
 		GamescopePanelOrientation m_ChosenOrientation = GAMESCOPE_PANEL_ORIENTATION_AUTO;
+
+		GamescopePanelType m_ChosenPanelType = GAMESCOPE_PANEL_TYPE_AUTO;
 
 		ConnectorProperties m_Props;
 	};
@@ -528,6 +550,9 @@ bool g_bSupportsSyncObjs = false;
 
 extern gamescope::GamescopeModeGeneration g_eGamescopeModeGeneration;
 extern GamescopePanelOrientation g_DesiredInternalOrientation;
+
+extern GamescopePanelType g_eGamescopePanelType;
+extern GamescopePanelExternalOrientation g_eGamescopePanelExternalOrientation;
 
 extern bool g_bForceDisableColorMgmt;
 
@@ -2018,7 +2043,29 @@ namespace gamescope
 
 	void CDRMConnector::UpdateEffectiveOrientation( const drmModeModeInfo *pMode )
 	{
-		if ( this->GetScreenType() == GAMESCOPE_SCREEN_TYPE_INTERNAL && g_DesiredInternalOrientation != GAMESCOPE_PANEL_ORIENTATION_AUTO )
+		if ( this->GetScreenType() == GAMESCOPE_SCREEN_TYPE_EXTERNAL &&
+			g_eGamescopePanelExternalOrientation != GAMESCOPE_PANEL_EXTERNAL_ORIENTATION_AUTO &&
+			this->GetDisplayTypeInternal() )
+		{
+			switch ( g_eGamescopePanelExternalOrientation )
+			{
+				case GAMESCOPE_PANEL_EXTERNAL_ORIENTATION_0:
+					m_ChosenOrientation = GAMESCOPE_PANEL_ORIENTATION_0;
+					return;
+				case GAMESCOPE_PANEL_EXTERNAL_ORIENTATION_90:
+					m_ChosenOrientation = GAMESCOPE_PANEL_ORIENTATION_90;
+					return;
+				case GAMESCOPE_PANEL_EXTERNAL_ORIENTATION_180:
+					m_ChosenOrientation = GAMESCOPE_PANEL_ORIENTATION_180;
+					return;
+				case GAMESCOPE_PANEL_EXTERNAL_ORIENTATION_270:
+					m_ChosenOrientation = GAMESCOPE_PANEL_ORIENTATION_270;
+					return;
+				default:
+					break;
+			}
+		}
+		else if ( this->GetScreenType() == GAMESCOPE_SCREEN_TYPE_INTERNAL && g_DesiredInternalOrientation != GAMESCOPE_PANEL_ORIENTATION_AUTO )
 		{
 			m_ChosenOrientation = g_DesiredInternalOrientation;
 		}
@@ -2059,6 +2106,14 @@ namespace gamescope
 		}
 	}
 
+	// void CDRMConnector::SetPanelType( GamescopePanelType ePanelType )
+	// {
+	// 	if ( ePanelType == m_ChosenPanelType )
+	// 		return;
+
+	// 	m_ChosenPanelType = ePanelType;
+	// }
+	
 	void CDRMConnector::ParseEDID()
 	{
 		if ( !GetProperties().EDID )
@@ -2111,6 +2166,8 @@ namespace gamescope
 		}
 
 		drm_log.infof("Connector %s -> %s - %s", m_Mutable.szName, m_Mutable.szMakePNP, m_Mutable.szModel );
+
+		m_ChosenPanelType = g_eGamescopePanelType;
 
 		const bool bIsDeckHDUnofficial = ( m_Mutable.szMakePNP == "DHD"sv && m_Mutable.szModel == "DeckHD-1200p"sv );
 
