@@ -533,6 +533,8 @@ bool g_bSupportsSyncObjs = false;
 extern gamescope::GamescopeModeGeneration g_eGamescopeModeGeneration;
 extern GamescopePanelOrientation g_DesiredInternalOrientation;
 
+extern std::vector<uint32_t> g_customRefreshRates;
+
 extern bool g_bForceDisableColorMgmt;
 
 static LogScope drm_log( "drm" );
@@ -2219,6 +2221,11 @@ namespace gamescope
 
 					bHasKnownHDRInfo = true;
 				}
+			}
+
+			if ( !g_customRefreshRates.empty() && GetScreenType() == GAMESCOPE_SCREEN_TYPE_INTERNAL )
+			{
+				m_Mutable.ValidDynamicRefreshRates = g_customRefreshRates;
 			}
 		}
 
