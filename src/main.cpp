@@ -87,6 +87,7 @@ const struct option *gamescope_options = (struct option[]){
 	{ "prefer-output", required_argument, nullptr, 'O' },
 	{ "default-touch-mode", required_argument, nullptr, 0 },
 	{ "generate-drm-mode", required_argument, nullptr, 0 },
+	{ "custom-refresh-rates", required_argument, nullptr, 0 },
 	{ "immediate-flips", no_argument, nullptr, 0 },
 	{ "adaptive-sync", no_argument, nullptr, 0 },
 	{ "framerate-limit", required_argument, nullptr, 0 },
@@ -236,6 +237,7 @@ const char usage[] =
 	"  --generate-drm-mode            DRM mode generation algorithm (cvt, fixed)\n"
 	"  --immediate-flips              Enable immediate flips, may result in tearing\n"
 	"  --adaptive-sync                Enable adaptive sync if available (variable rate refresh)\n"
+	"  --custom-refresh-rates         Set custom refresh rates for the output. eg: 60,120,144-165\n"
 	"\n"
 #if HAVE_OPENVR
 	"VR mode options:\n"
@@ -356,6 +358,8 @@ double g_accelSpeed = false;
 
 pthread_t g_mainThread;
 
+std::vector<uint32_t> g_customRefreshRates;
+
 static void steamCompMgrThreadRun(int argc, char **argv);
 
 static std::string build_optstring(const struct option *options)
@@ -391,6 +395,32 @@ static gamescope::GamescopeModeGeneration parse_gamescope_mode_generation( const
 		fprintf( stderr, "gamescope: invalid value for --generate-drm-mode\n" );
 		exit(1);
 	}
+}
+
+// eg: 60,120,144-165
+static std::vector<uint32_t> parse_custom_refresh_rates( const char *str )
+{
+	std::vector<uint32_t> rates;
+	char *token = strtok( strdup(str), ",");
+	while (token)
+	{
+		char *dash = strchr(token, '-');
+		if (dash)
+		{
+			uint32_t start = atoi(token);
+			uint32_t end = atoi(dash + 1);
+			for (uint32_t i = start; i <= end; i++)
+			{
+				rates.push_back(i);
+			}
+		}
+		else
+		{
+			rates.push_back(atoi(token));
+		}
+		token = strtok(nullptr, ",");
+	}
+	return rates;
 }
 
 GamescopePanelOrientation g_DesiredInternalOrientation = GAMESCOPE_PANEL_ORIENTATION_AUTO;
@@ -821,6 +851,8 @@ int main(int argc, char **argv)
 					gamescope::cv_touch_click_mode = (gamescope::TouchClickMode) atoi( optarg );
 				} else if (strcmp(opt_name, "generate-drm-mode") == 0) {
 					g_eGamescopeModeGeneration = parse_gamescope_mode_generation( optarg );
+				} else if (strcmp(opt_name, "custom-refresh-rates") == 0) {
+					g_customRefreshRates = parse_custom_refresh_rates( optarg );
 				} else if (strcmp(opt_name, "force-orientation") == 0) {
 					g_DesiredInternalOrientation = force_orientation( optarg );
 				} else if (strcmp(opt_name, "sharpness") == 0 ||
