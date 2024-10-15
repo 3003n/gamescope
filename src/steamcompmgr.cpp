@@ -147,6 +147,8 @@ static lut3d_t g_tmpLut3d;
 extern int g_nDynamicRefreshHz;
 
 bool g_bForceHDRSupportDebug = false;
+bool g_bHackyEnabled = false;
+bool g_bVRRModesetting = false;
 extern float g_flInternalDisplayBrightnessNits;
 extern float g_flHDRItmSdrNits;
 extern float g_flHDRItmTargetNits;
@@ -197,6 +199,7 @@ update_runtime_info();
 gamescope::ConVar<bool> cv_adaptive_sync( "adaptive_sync", false, "Whether or not adaptive sync is enabled if available." );
 gamescope::ConVar<bool> cv_adaptive_sync_ignore_overlay( "adaptive_sync_ignore_overlay", false, "Whether or not to ignore overlay planes for pushing commits with adaptive sync." );
 gamescope::ConVar<int> cv_adaptive_sync_overlay_cycles( "adaptive_sync_overlay_cycles", 1, "Number of vblank cycles to ignore overlay repaints before forcing a commit with adaptive sync." );
+gamescope::ConVar<bool> cv_disable_touch_click{ "disable_touch_click", false, "Prevents touchscreen taps acting as clicks" };
 
 uint64_t g_SteamCompMgrLimitedAppRefreshCycle = 16'666'666;
 uint64_t g_SteamCompMgrAppRefreshCycle = 16'666'666;
@@ -897,7 +900,7 @@ bool g_bChangeDynamicRefreshBasedOnGameOpenRatherThanActive = false;
 bool steamcompmgr_window_should_limit_fps( steamcompmgr_win_t *w )
 {
 	// VRR + FPS Limit needs another approach.
-	if ( GetBackend()->IsVRRActive() )
+	if ( GetBackend()->IsVRRActive() && !(g_bVRRModesetting && GetBackend()->GetScreenType() == gamescope::GAMESCOPE_SCREEN_TYPE_INTERNAL) )
 		return false;
 
 	return w && !window_is_steam( w ) && !w->isOverlay && !w->isExternalOverlay;
@@ -921,7 +924,7 @@ steamcompmgr_user_has_any_game_open()
 
 bool steamcompmgr_window_should_refresh_switch( steamcompmgr_win_t *w )
 {
-	if ( GetBackend()->IsVRRActive() )
+	if ( GetBackend()->IsVRRActive()  && !(g_bVRRModesetting && GetBackend()->GetScreenType() == gamescope::GAMESCOPE_SCREEN_TYPE_INTERNAL))
 		return false;
 
 	if ( g_bChangeDynamicRefreshBasedOnGameOpenRatherThanActive )
@@ -2411,7 +2414,7 @@ paint_all(bool async)
 		if ( overlay == global_focus.inputFocusWindow )
 			update_touch_scaling( &frameInfo );
 	}
-	else if ( !GetBackend()->UsesVulkanSwapchain() && GetBackend()->IsSessionBased() )
+	else if ( g_bHackyEnabled && !GetBackend()->UsesVulkanSwapchain() && GetBackend()->IsSessionBased() )
 	{
 		auto tex = vulkan_get_hacky_blank_texture();
 		if ( tex != nullptr )
@@ -3299,7 +3302,7 @@ found:;
 		if ( window_has_commits( focus ) ) 
 			out->focusWindow = focus;
 		else
-			focus->outdatedInteractiveFocus = true;
+			out->outdatedInteractiveFocus = true;
 
 		// Always update X's idea of focus, but still dirty
 		// the it being outdated so we can resolve that globally later.
@@ -5185,7 +5188,7 @@ handle_property_notify(xwayland_ctx_t *ctx, XPropertyEvent *ev)
 			MakeFocusDirty();
 		}
 	}
-	if (ev->atom == ctx->atoms.steamTouchClickModeAtom )
+	if (ev->atom == ctx->atoms.steamTouchClickModeAtom && !cv_disable_touch_click )
 	{
 		gamescope::cv_touch_click_mode = (gamescope::TouchClickMode) get_prop(ctx, ctx->root, ctx->atoms.steamTouchClickModeAtom, 0u );
 	}
@@ -6044,28 +6047,37 @@ bool handle_done_commit( steamcompmgr_win_t *w, xwayland_ctx_t *ctx, uint64_t co
 			// Window just got a new available commit, determine if that's worth a repaint
 
 			// If this is an overlay that we're presenting, repaint
-			if ( w == global_focus.overlayWindow && w->opacity != TRANSLUCENT )
+			if ( gameFocused )
 			{
-				hasRepaintNonBasePlane = true;
-			}
+				if ( w == global_focus.overlayWindow && w->opacity != TRANSLUCENT )
+				{
+					hasRepaintNonBasePlane = true;
+				}
 
-			if ( w == global_focus.notificationWindow && w->opacity != TRANSLUCENT )
+				if ( w == global_focus.notificationWindow && w->opacity != TRANSLUCENT )
+				{
+					hasRepaintNonBasePlane = true;
+				}
+			}
+			if ( ctx )
 			{
-				hasRepaintNonBasePlane = true;
+				if ( ctx->focus.outdatedInteractiveFocus )
+				{
+					MakeFocusDirty();
+					ctx->focus.outdatedInteractiveFocus = false;
+				}
 			}
-
-			// If this is an external overlay, repaint
-			if ( w == global_focus.externalOverlayWindow && w->opacity != TRANSLUCENT )
-			{
-				hasRepaintNonBasePlane = true;
-			}
-
-			if ( w->outdatedInteractiveFocus )
+			if ( global_focus.outdatedInteractiveFocus )
 			{
 				MakeFocusDirty();
-				w->outdatedInteractiveFocus = false;
-			}
+				global_focus.outdatedInteractiveFocus = false;
 
+				// If this is an external overlay, repaint
+				if ( w == global_focus.externalOverlayWindow && w->opacity != TRANSLUCENT )
+				{
+					hasRepaintNonBasePlane = true;
+				}
+			}
 			// If this is the main plane, repaint
 			if ( w == global_focus.focusWindow && !w->isSteamStreamingClient )
 			{
@@ -7180,7 +7192,7 @@ void update_mode_atoms(xwayland_ctx_t *root_ctx, bool* needs_flush = nullptr)
 	if (needs_flush)
 		*needs_flush = true;
 
-	if ( GetBackend()->GetCurrentConnector() && GetBackend()->GetCurrentConnector()->GetScreenType() == gamescope::GAMESCOPE_SCREEN_TYPE_INTERNAL )
+	if ( !g_FakeExternal && GetBackend()->GetCurrentConnector() && GetBackend()->GetCurrentConnector()->GetScreenType() == gamescope::GAMESCOPE_SCREEN_TYPE_INTERNAL )
 	{
 		XDeleteProperty(root_ctx->dpy, root_ctx->root, root_ctx->atoms.gamescopeDisplayModeListExternal);
 
@@ -7467,6 +7479,12 @@ steamcompmgr_main(int argc, char **argv)
 					g_reshade_technique_idx = atoi(optarg);
 				} else if (strcmp(opt_name, "mura-map") == 0) {
 					set_mura_overlay(optarg);
+				} else if (strcmp(opt_name, "disable-touch-click") == 0) {
+					cv_disable_touch_click = true;
+				} else if (strcmp(opt_name, "enable-vrr-modesetting") == 0) {
+					g_bVRRModesetting = true;
+				} else if (strcmp(opt_name, "enable-hacky-texture") == 0) {
+					g_bHackyEnabled = true;
 				}
 				break;
 			case '?':

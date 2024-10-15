@@ -290,6 +290,9 @@ static void wlserver_handle_modifiers(struct wl_listener *listener, void *data)
 	bump_input_counter();
 }
 
+// false if GS_ENABLE_CTRL_12 exists and is 0, true otherwise
+bool env_gs_enable_ctrl_12 = getenv("GS_ENABLE_CTRL_12") ? (getenv("GS_ENABLE_CTRL_12")[0] != '0') : true;
+
 static void wlserver_handle_key(struct wl_listener *listener, void *data)
 {
 	struct wlserver_keyboard *keyboard = wl_container_of( listener, keyboard, key );
@@ -310,7 +313,14 @@ static void wlserver_handle_key(struct wl_listener *listener, void *data)
 		keysym == XKB_KEY_XF86AudioLowerVolume ||
 		keysym == XKB_KEY_XF86AudioRaiseVolume ||
 		keysym == XKB_KEY_XF86PowerOff;
-	if ( ( event->state == WL_KEYBOARD_KEY_STATE_PRESSED || event->state == WL_KEYBOARD_KEY_STATE_RELEASED ) && forbidden_key )
+
+	// Check for steam overlay key (ctrl/super + 1/2)
+	bool is_steamshortcut =
+		((env_gs_enable_ctrl_12 && (keyboard->wlr->modifiers.depressed & WLR_MODIFIER_CTRL)) ||
+		 (keyboard->wlr->modifiers.depressed & WLR_MODIFIER_LOGO)) &&
+		(keysym == XKB_KEY_1 || keysym == XKB_KEY_2);
+
+	if ( ( event->state == WL_KEYBOARD_KEY_STATE_PRESSED || event->state == WL_KEYBOARD_KEY_STATE_RELEASED ) && (forbidden_key || is_steamshortcut) )
 	{
 		// Always send volume+/- to root server only, to avoid it reaching the game.
 		struct wlr_surface *old_kb_surf = wlserver.kb_focus_surface;
@@ -319,6 +329,13 @@ static void wlserver_handle_key(struct wl_listener *listener, void *data)
 		{
 			wlserver_keyboardfocus( new_kb_surf, false );
 			wlr_seat_set_keyboard( wlserver.wlr.seat, keyboard->wlr );
+			if (is_steamshortcut)
+			{
+				// send ctrl down modifier to trigger the overlay
+				wlr_keyboard_modifiers ctrl_down_modifier;
+				ctrl_down_modifier.depressed = WLR_MODIFIER_CTRL;
+				wlr_seat_keyboard_notify_modifiers(wlserver.wlr.seat, &ctrl_down_modifier);
+			}
 			wlr_seat_keyboard_notify_key( wlserver.wlr.seat, event->time_msec, event->keycode, event->state );
 			wlserver_keyboardfocus( old_kb_surf, false );
 			return;
@@ -1061,7 +1078,7 @@ static uint32_t get_conn_display_info_flags()
 		return 0;
 
 	uint32_t flags = 0;
-	if ( pConn->GetScreenType() == gamescope::GAMESCOPE_SCREEN_TYPE_INTERNAL )
+	if ( pConn->GetScreenType() == gamescope::GAMESCOPE_SCREEN_TYPE_INTERNAL && !g_FakeExternal )
 		flags |= GAMESCOPE_CONTROL_DISPLAY_FLAG_INTERNAL_DISPLAY;
 	if ( pConn->SupportsVRR() )
 		flags |= GAMESCOPE_CONTROL_DISPLAY_FLAG_SUPPORTS_VRR;
