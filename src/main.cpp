@@ -128,7 +128,13 @@ const struct option *gamescope_options = (struct option[]){
 	{ "disable-xres", no_argument, nullptr, 'x' },
 	{ "fade-out-duration", required_argument, nullptr, 0 },
 	{ "force-orientation", required_argument, nullptr, 0 },
+	{ "enable-hacky-texture", no_argument, nullptr, 0 },
+	{ "force-panel-type", required_argument, nullptr, 0 },
+	{ "force-external-orientation", required_argument, nullptr, 0 },
+	{ "disable-touch-click", no_argument, nullptr, 0 },
+	{ "enable-vrr-modesetting", no_argument, nullptr, 0 },
 	{ "force-windows-fullscreen", no_argument, nullptr, 0 },
+	{ "custom-refresh-rates", required_argument, nullptr, 0 },
 
 	{ "disable-color-management", no_argument, nullptr, 0 },
 	{ "sdr-gamut-wideness", required_argument, nullptr, 0 },
@@ -187,9 +193,13 @@ const char usage[] =
 	"  -T, --stats-path               write statistics to path\n"
 	"  -C, --hide-cursor-delay        hide cursor image after delay\n"
 	"  -e, --steam                    enable Steam integration\n"
+	"  --enable-hacky-texture         enable hacky texture on hw that support it\n"
+	"  --disable-touch-click          disable touchscreen tap acting as a click\n"
+	"  --enable-vrr-modesetting       enable setting framerate while VRR is on in the internal display\n"
 	"  --xwayland-count               create N xwayland servers\n"
 	"  --prefer-vk-device             prefer Vulkan device for compositing (ex: 1002:7300)\n"
 	"  --force-orientation            rotate the internal display (left, right, normal, upsidedown)\n"
+	"  --force-panel-type             lie to steam that the screen is external\n"
 	"  --force-windows-fullscreen     force windows inside of gamescope to be the size of the nested display (fullscreen)\n"
 	"  --cursor-scale-height          if specified, sets a base output height to linearly scale the cursor against.\n"
 	"  --hdr-enabled                  enable HDR output (needs Gamescope WSI layer enabled for support from clients)\n"
@@ -202,6 +212,7 @@ const char usage[] =
 	"  --hdr-itm-target-nits          set the target luminace of the inverse tone mapping process.\n"
 	"                                 Default: 1000 nits, Max: 10000 nits\n"
 	"  --framerate-limit              Set a simple framerate limit. Used as a divisor of the refresh rate, rounds down eg 60 / 59 -> 60fps, 60 / 25 -> 30fps. Default: 0, disabled.\n"
+	"  --custom-refresh-rates         Set custom refresh rates for the output. eg: 60,90,110-120\n"
 	"  --mangoapp                     Launch with the mangoapp (mangohud) performance overlay enabled. You should use this instead of using mangohud on the game or gamescope.\n"
 	"\n"
 	"Nested mode options:\n"
@@ -363,6 +374,19 @@ static GamescopePanelOrientation force_orientation(const char *str)
 	}
 }
 
+bool g_FakeExternal = false;
+static bool force_panel_type_external(const char *str)
+{
+	if (strcmp(str, "internal") == 0) {
+		return false;
+	} else if (strcmp(str, "external") == 0) {
+		return true;
+	} else {
+		fprintf( stderr, "gamescope: invalid value for --force-panel-type\n" );
+		exit(1);
+	}
+}
+
 static enum GamescopeUpscaleScaler parse_upscaler_scaler(const char *str)
 {
 	if (strcmp(str, "auto") == 0) {
@@ -423,6 +447,33 @@ static enum gamescope::GamescopeBackend parse_backend_name(const char *str)
 		fprintf( stderr, "gamescope: invalid value for --backend\n" );
 		exit(1);
 	}
+}
+
+std::vector<uint32_t> g_customRefreshRates;
+// eg: 60,60,90,110-120
+static std::vector<uint32_t> parse_custom_refresh_rates( const char *str )
+{
+	std::vector<uint32_t> rates;
+	char *token = strtok( strdup(str), ",");
+	while (token)
+	{
+		char *dash = strchr(token, '-');
+		if (dash)
+		{
+			uint32_t start = atoi(token);
+			uint32_t end = atoi(dash + 1);
+			for (uint32_t i = start; i <= end; i++)
+			{
+				rates.push_back(i);
+			}
+		}
+		else
+		{
+			rates.push_back(atoi(token));
+		}
+		token = strtok(nullptr, ",");
+	}
+	return rates;
 }
 
 struct sigaction handle_signal_action = {};
@@ -744,8 +795,12 @@ int main(int argc, char **argv)
 					gamescope::cv_touch_click_mode = (gamescope::TouchClickMode) atoi( optarg );
 				} else if (strcmp(opt_name, "generate-drm-mode") == 0) {
 					g_eGamescopeModeGeneration = parse_gamescope_mode_generation( optarg );
-				} else if (strcmp(opt_name, "force-orientation") == 0) {
+				} else if (strcmp(opt_name, "force-orientation") == 0 || strcmp(opt_name, "force-external-orientation") == 0) {
 					g_DesiredInternalOrientation = force_orientation( optarg );
+				} else if (strcmp(opt_name, "force-panel-type") == 0) {
+					g_FakeExternal = force_panel_type_external( optarg );
+				} else if (strcmp(opt_name, "custom-refresh-rates") == 0) {
+					g_customRefreshRates = parse_custom_refresh_rates( optarg );
 				} else if (strcmp(opt_name, "sharpness") == 0 ||
 						   strcmp(opt_name, "fsr-sharpness") == 0) {
 					g_upscaleFilterSharpness = atoi( optarg );
