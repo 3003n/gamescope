@@ -149,6 +149,7 @@ extern int g_nDynamicRefreshHz;
 bool g_bForceHDRSupportDebug = false;
 bool g_bHackyEnabled = false;
 bool g_bVRRModesetting = false;
+bool g_refreshHalve = false;
 extern float g_flInternalDisplayBrightnessNits;
 extern float g_flHDRItmSdrNits;
 extern float g_flHDRItmTargetNits;
@@ -166,6 +167,7 @@ uint32_t g_reshade_technique_idx = 0;
 bool g_bSteamIsActiveWindow = false;
 bool g_bForceInternal = false;
 bool g_bVRRRequested = false;
+bool g_bVRRCanEnable = false;
 
 static std::vector< steamcompmgr_win_t* > GetGlobalPossibleFocusWindows();
 static bool
@@ -838,15 +840,15 @@ static void _update_app_target_refresh_cycle()
 					{
 						g_nDynamicRefreshRate[ type ] = *rate;
 						// Enable VRR as we have the correct refresh rate
-						cv_adaptive_sync = true;
+						g_bVRRCanEnable = true;
 						return;
 					}
 				}
 				// Otherwise, disable VRR as we can't match the refresh rate 1-1
 				// (e.g., below 48hz).
-				cv_adaptive_sync = false;
+				g_bVRRCanEnable = false;
 			} else {
-				cv_adaptive_sync = false;
+				g_bVRRCanEnable = false;
 			}
 		}
 
@@ -5105,19 +5107,24 @@ static bool steamcompmgr_should_vblank_window( bool bShouldLimitFPS, uint64_t vb
 	if ( GetBackend()->IsVRRActive() )
 		return true;
 
-	bool bSendCallback = true;
-
 	int nRefreshHz = gamescope::ConvertmHzToHz( g_nNestedRefresh ? g_nNestedRefresh : g_nOutputRefresh );
 	int nTargetFPS = g_nSteamCompMgrTargetFPS;
-	if ( g_nSteamCompMgrTargetFPS && bShouldLimitFPS && nRefreshHz > nTargetFPS )
+
+	if ( nRefreshHz > 60 && g_refreshHalve )
+	{
+		// Refresh halve above 60Hz if steamui is active
+		if ( vblank_idx % 2 != 0 )
+			return false;
+	}
+	else if ( g_nSteamCompMgrTargetFPS && bShouldLimitFPS && nRefreshHz > nTargetFPS )
 	{
 		int nVblankDivisor = nRefreshHz / nTargetFPS;
 
 		if ( vblank_idx % nVblankDivisor != 0 )
-			bSendCallback = false;
+			return false;
 	}
 
-	return bSendCallback;
+	return true;
 }
 
 static bool steamcompmgr_should_vblank_window( steamcompmgr_win_t *w, uint64_t vblank_idx )
@@ -5549,7 +5556,7 @@ handle_property_notify(xwayland_ctx_t *ctx, XPropertyEvent *ev)
 		// Try to match refresh rate and have that set the cv_adaptive_sync only if it can
 		if (g_bVRRModesetting) update_app_target_refresh_cycle();
 		// otherwise, fall back to original behavior
-		else cv_adaptive_sync = g_bVRRRequested;
+		else g_bVRRCanEnable = g_bVRRRequested;
 	}
 	if ( ev->atom == ctx->atoms.gamescopeDisplayForceInternal )
 	{
@@ -7627,6 +7634,15 @@ steamcompmgr_main(int argc, char **argv)
 		// Consider this to also be "is this vblank, the fastest refresh cycle after our last commit?"
 		// as a question.
 		const bool bIsVBlankFromTimer = vblank;
+
+		if ( window_is_steam( global_focus.focusWindow ) ) {
+			// Halve refresh rate and disable vrr on SteamUI
+			cv_adaptive_sync = false;
+			g_refreshHalve = true;
+		} else {
+			cv_adaptive_sync = g_bVRRCanEnable;
+			g_refreshHalve = false;
+		}
 
 		// We can always vblank if VRR.
 		const bool bVRR = GetBackend()->IsVRRActive();
