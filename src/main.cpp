@@ -129,6 +129,7 @@ const struct option *gamescope_options = (struct option[]){
 	{ "fade-out-duration", required_argument, nullptr, 0 },
 	{ "force-orientation", required_argument, nullptr, 0 },
 	{ "enable-hacky-texture", no_argument, nullptr, 0 },
+	{ "enable-refresh-halve", no_argument, nullptr, 0 },
 	{ "force-panel-type", required_argument, nullptr, 0 },
 	{ "force-external-orientation", required_argument, nullptr, 0 },
 	{ "disable-touch-click", no_argument, nullptr, 0 },
@@ -206,6 +207,7 @@ const char usage[] =
 	"  -C, --hide-cursor-delay        hide cursor image after delay\n"
 	"  -e, --steam                    enable Steam integration\n"
 	"  --enable-hacky-texture         enable hacky texture on hw that support it\n"
+	"  --enable-refresh-halve         enable halving the refresh rate while at steamUI and disable VRR\n"
 	"  --disable-touch-click          disable touchscreen tap acting as a click\n"
 	"  --enable-vrr-modesetting       enable setting framerate while VRR is on in the internal display\n"
 	"  --xwayland-count               create N xwayland servers\n"

@@ -150,6 +150,7 @@ bool g_bForceHDRSupportDebug = false;
 bool g_bHackyEnabled = false;
 bool g_bVRRModesetting = false;
 bool g_refreshHalve = false;
+bool g_refreshHalveEnabled = false;
 bool vrr_requested = false;
 extern float g_flInternalDisplayBrightnessNits;
 extern float g_flHDRItmSdrNits;
@@ -7514,6 +7515,8 @@ steamcompmgr_main(int argc, char **argv)
 					g_bVRRModesetting = true;
 				} else if (strcmp(opt_name, "enable-hacky-texture") == 0) {
 					g_bHackyEnabled = true;
+				} else if (strcmp(opt_name, "enable-refresh-halve") == 0) {
+					g_refreshHalveEnabled = true;
 				}
 				break;
 			case '?':
@@ -7634,7 +7637,7 @@ steamcompmgr_main(int argc, char **argv)
 		// We can always vblank if VRR.
 		bool bVRR = GetBackend()->IsVRRActive();
 
-		if ( window_is_steam( global_focus.focusWindow ) ) {
+		if ( window_is_steam( global_focus.focusWindow ) && g_refreshHalveEnabled ) {
 			// Halve refresh rate and disable vrr on SteamUI
 			bVRR = false;
 			g_refreshHalve = true;
