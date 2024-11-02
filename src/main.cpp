@@ -132,6 +132,7 @@ const struct option *gamescope_options = (struct option[]){
 	{ "force-panel-type", required_argument, nullptr, 0 },
 	{ "force-external-orientation", required_argument, nullptr, 0 },
 	{ "disable-touch-click", no_argument, nullptr, 0 },
+	{ "disable-steamui-framelimit", no_argument, nullptr, 0 },
 	{ "enable-vrr-modesetting", no_argument, nullptr, 0 },
 	{ "force-windows-fullscreen", no_argument, nullptr, 0 },
 	{ "custom-refresh-rates", required_argument, nullptr, 0 },
@@ -195,6 +196,7 @@ const char usage[] =
 	"  -e, --steam                    enable Steam integration\n"
 	"  --enable-hacky-texture         enable hacky texture on hw that support it\n"
 	"  --disable-touch-click          disable touchscreen tap acting as a click\n"
+	"  --disable-steamui-framelimit   By default, for displays above 100Hz, framerate is halved in SteamUI. Disable that.\n"
 	"  --enable-vrr-modesetting       enable setting framerate while VRR is on in the internal display\n"
 	"  --xwayland-count               create N xwayland servers\n"
 	"  --prefer-vk-device             prefer Vulkan device for compositing (ex: 1002:7300)\n"
