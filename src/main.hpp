@@ -55,13 +55,6 @@ struct GamescopeBicubicParams
 	float c = 0.3f;
 };
 
-static constexpr bool DoesHardwareSupportUpscaleFilter( GamescopeUpscaleFilter eFilter )
-{
-    // Could do nearest someday... AMDGPU DC supports custom tap placement to an extent.
-
-    return eFilter == GamescopeUpscaleFilter::LINEAR;
-}
-
 enum class GamescopeUpscaleScaler : uint32_t
 {
     AUTO,
