@@ -150,6 +150,7 @@ bool g_bForceHDRSupportDebug = false;
 bool g_bHackyEnabled = false;
 bool g_bVRRModesetting = false;
 bool g_refreshHalve = false;
+bool g_refreshHalveEnabled = false;
 extern float g_flInternalDisplayBrightnessNits;
 extern float g_flHDRItmSdrNits;
 extern float g_flHDRItmTargetNits;
@@ -7518,6 +7519,8 @@ steamcompmgr_main(int argc, char **argv)
 					g_bVRRModesetting = true;
 				} else if (strcmp(opt_name, "enable-hacky-texture") == 0) {
 					g_bHackyEnabled = true;
+				} else if (strcmp(opt_name, "enable-refresh-halve") == 0) {
+					g_refreshHalveEnabled = true;
 				}
 				break;
 			case '?':
@@ -7635,7 +7638,7 @@ steamcompmgr_main(int argc, char **argv)
 		// as a question.
 		const bool bIsVBlankFromTimer = vblank;
 
-		if ( window_is_steam( global_focus.focusWindow ) ) {
+		if ( window_is_steam( global_focus.focusWindow ) && g_refreshHalveEnabled ) {
 			// Halve refresh rate and disable vrr on SteamUI
 			cv_adaptive_sync = false;
 			g_refreshHalve = true;
