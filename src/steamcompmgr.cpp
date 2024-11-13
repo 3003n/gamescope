@@ -167,6 +167,8 @@ bool g_bSteamIsActiveWindow = false;
 bool g_bForceInternal = false;
 bool b_bForceFrameLimit = false;
 bool g_bRefreshHalveEnable = false;
+bool g_bDPMS = false;
+bool g_bDPMS_set = false;
 
 static std::vector< steamcompmgr_win_t* > GetGlobalPossibleFocusWindows();
 static bool
@@ -2254,7 +2256,7 @@ bool ShouldDrawCursor()
 }
 
 static void
-paint_all(bool async)
+paint_all( bool async, bool dpms )
 {
 	gamescope_xwayland_server_t *root_server = wlserver_get_xwayland_server(0);
 	xwayland_ctx_t *root_ctx = root_server->ctx.get();
@@ -2305,6 +2307,7 @@ paint_all(bool async)
 	frameInfo.outputEncodingEOTF = g_ColorMgmt.pending.outputEncodingEOTF;
 	frameInfo.allowVRR = cv_adaptive_sync;
 	frameInfo.bFadingOut = fadingOut;
+	frameInfo.dpms = dpms;
 
 	// If the window we'd paint as the base layer is the streaming client,
 	// find the video underlay and put it up first in the scenegraph
@@ -5933,6 +5936,10 @@ handle_property_notify(xwayland_ctx_t *ctx, XPropertyEvent *ev)
 	{
 		g_bRefreshHalveEnable = !!get_prop( ctx, ctx->root, ctx->atoms.gamescopeFrameHalveAtom, 0 );
 	}
+	if (ev->atom == ctx->atoms.gamescopeDPMS)
+	{
+		g_bDPMS = !!get_prop(ctx, ctx->root, ctx->atoms.gamescopeDPMS, 0);
+	}
 }
 
 static int
@@ -7115,6 +7122,7 @@ void init_xwayland_ctx(uint32_t serverId, gamescope_xwayland_server_t *xwayland_
 	ctx->atoms.targets = XInternAtom(ctx->dpy, "TARGETS", false);
 
 	ctx->atoms.gamescopeFrameHalveAtom = XInternAtom( ctx->dpy, "GAMESCOPE_STEAMUI_HALFHZ", false );;
+	ctx->atoms.gamescopeDPMS = XInternAtom(ctx->dpy, "GAMESCOPE_DPMS", false);
 
 	ctx->root_width = DisplayWidth(ctx->dpy, ctx->scr);
 	ctx->root_height = DisplayHeight(ctx->dpy, ctx->scr);
@@ -8110,9 +8118,10 @@ steamcompmgr_main(int argc, char **argv)
 			bShouldPaint = true;
 		}
 
-		if ( bShouldPaint )
+		if ( bShouldPaint || (g_bDPMS != g_bDPMS_set && vblank) )
 		{
-			paint_all( eFlipType == FlipType::Async );
+			g_bDPMS_set = g_bDPMS;
+			paint_all( eFlipType == FlipType::Async, g_bDPMS  );
 
 			hasRepaint = false;
 			hasRepaintNonBasePlane = false;
