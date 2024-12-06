@@ -127,6 +127,7 @@ const struct option *gamescope_options = (struct option[]){
 	{ "composite-debug", no_argument, nullptr, 0 },
 	{ "disable-xres", no_argument, nullptr, 'x' },
 	{ "fade-out-duration", required_argument, nullptr, 0 },
+	{ "use-rotation-shader", required_argument, nullptr, 0 },
 	{ "force-orientation", required_argument, nullptr, 0 },
 	{ "force-windows-fullscreen", no_argument, nullptr, 0 },
 	{ "custom-refresh-rates", required_argument, nullptr, 0 },
@@ -190,6 +191,7 @@ const char usage[] =
 	"  -e, --steam                    enable Steam integration\n"
 	"  --xwayland-count               create N xwayland servers\n"
 	"  --prefer-vk-device             prefer Vulkan device for compositing (ex: 1002:7300)\n"
+	"  --use-rotation-shader		  use rotation shader for rotating the screen\n"
 	"  --force-orientation            rotate the internal display (left, right, normal, upsidedown)\n"
 	"  --force-windows-fullscreen     force windows inside of gamescope to be the size of the nested display (fullscreen)\n"
 	"  --cursor-scale-height          if specified, sets a base output height to linearly scale the cursor against.\n"
@@ -347,6 +349,9 @@ static gamescope::GamescopeModeGeneration parse_gamescope_mode_generation( const
 		exit(1);
 	}
 }
+
+bool g_bUseRotationShader = false;
+bool g_bEnableDRMRotationShader = false;
 
 GamescopePanelOrientation g_DesiredInternalOrientation = GAMESCOPE_PANEL_ORIENTATION_AUTO;
 static GamescopePanelOrientation force_orientation(const char *str)
@@ -803,6 +808,8 @@ int main(int argc, char **argv)
 					g_eGamescopeModeGeneration = parse_gamescope_mode_generation( optarg );
 				} else if (strcmp(opt_name, "force-orientation") == 0) {
 					g_DesiredInternalOrientation = force_orientation( optarg );
+                } else if (strcmp(opt_name, "use-rotation-shader") == 0) {
+					g_bUseRotationShader = true;
 				} else if (strcmp(opt_name, "custom-refresh-rates") == 0) {
 					g_customRefreshRates = parse_custom_refresh_rates( optarg );
 				} else if (strcmp(opt_name, "sharpness") == 0 ||
