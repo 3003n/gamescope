@@ -91,6 +91,7 @@
 #include "convar.h"
 #include "refresh_rate.h"
 #include "commit.h"
+#include "reshade_effect_manager.hpp"
 #include "BufferMemo.h"
 #include "Utils/Process.h"
 #include "Utils/Algorithm.h"
@@ -159,6 +160,7 @@ std::string clipboard;
 std::string primarySelection;
 
 std::string g_reshade_effect{};
+extern ReshadeEffectPipeline *g_pLastReshadeEffect;
 uint32_t g_reshade_technique_idx = 0;
 
 bool g_bSteamIsActiveWindow = false;
@@ -7954,6 +7956,11 @@ steamcompmgr_main(int argc, char **argv)
 		else
 			eFlipType = FlipType::Normal;
 
+		if ( g_pLastReshadeEffect && ( g_pLastReshadeEffect->flags() & ReshadeEffectFlag::AlwaysScanout ) )
+		{
+			eFlipType = FlipType::Normal;
+		}
+
 		bool bShouldPaint = false;
 
 		if ( GetBackend()->IsVisible() )
@@ -8012,6 +8019,11 @@ steamcompmgr_main(int argc, char **argv)
 		else
 		{
 			bShouldPaint = false;
+		}
+
+		if ( g_pLastReshadeEffect && ( g_pLastReshadeEffect->flags() & ReshadeEffectFlag::AlwaysScanout ) )
+		{
+			bShouldPaint = true;
 		}
 
 		if ( bShouldPaint )
