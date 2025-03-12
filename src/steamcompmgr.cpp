@@ -148,6 +148,7 @@ static lut3d_t g_tmpLut3d;
 extern int g_nDynamicRefreshHz;
 
 bool g_bForceHDRSupportDebug = false;
+bool g_bHackyEnabled = false;
 extern float g_flInternalDisplayBrightnessNits;
 extern float g_flHDRItmSdrNits;
 extern float g_flHDRItmTargetNits;
@@ -2414,7 +2415,7 @@ paint_all(bool async)
 		if ( overlay == global_focus.inputFocusWindow )
 			update_touch_scaling( &frameInfo );
 	}
-	else if ( !GetBackend()->UsesVulkanSwapchain() && GetBackend()->IsSessionBased() )
+	else if ( g_bHackyEnabled && !GetBackend()->UsesVulkanSwapchain() && GetBackend()->IsSessionBased() )
 	{
 		auto tex = vulkan_get_hacky_blank_texture();
 		if ( tex != nullptr )
@@ -7505,6 +7506,8 @@ steamcompmgr_main(int argc, char **argv)
 					set_mura_overlay(optarg);
 				} else if (strcmp(opt_name, "disable-touch-click") == 0) {
 					cv_disable_touch_click = true;
+				} else if (strcmp(opt_name, "enable-hacky-texture") == 0) {
+					g_bHackyEnabled = true;
 				}
 				break;
 			case '?':
