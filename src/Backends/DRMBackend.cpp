@@ -2142,6 +2142,8 @@ namespace gamescope
 		bool bHasKnownColorimetry = false;
 		bool bHasKnownHDRInfo = false;
 
+		m_Mutable.ValidDynamicRefreshRates.clear();
+		m_Mutable.fnDynamicModeGenerator = nullptr;
 		{
 			CScriptScopedLock script;
 
@@ -2155,8 +2157,6 @@ namespace gamescope
 					(int)oKnownDisplay->first.size(), oKnownDisplay->first.data(),
 					(int)psvPrettyName.size(), psvPrettyName.data() );
 
-				m_Mutable.fnDynamicModeGenerator = nullptr;
-				m_Mutable.ValidDynamicRefreshRates.clear();
 
 				sol::optional<sol::table> otDynamicRefreshRates = tTable["dynamic_refresh_rates"];
 				sol::optional<sol::function> ofnDynamicModegen = tTable["dynamic_modegen"];
@@ -2241,6 +2241,34 @@ namespace gamescope
 					m_Mutable.HDR.uMinContentLightLevel = nits_to_u16_dark( otHDRInfo->get_or( "min_content_light_level", 0.1f ) );
 
 					bHasKnownHDRInfo = true;
+				}
+			}
+			else
+			{
+				// Unknown display, see if there are any other refresh rates in the EDID we can get.
+				if ( GetScreenType() == GAMESCOPE_SCREEN_TYPE_INTERNAL )
+				{
+					const drmModeModeInfo *pPreferredMode = find_mode( m_pConnector.get(), 0, 0, 0 );
+
+					if ( pPreferredMode )
+					{
+						// See if the EDID has any modes for us.
+						for (int i = 0; i < m_pConnector->count_modes; i++)
+						{
+							const drmModeModeInfo *pMode = &m_pConnector->modes[i];
+
+							if ( pMode->hdisplay != pPreferredMode->hdisplay || pMode->vdisplay != pPreferredMode->vdisplay )
+								continue;
+
+							
+							if ( !Algorithm::Contains( m_Mutable.ValidDynamicRefreshRates, pMode->vrefresh ) )
+							{
+								m_Mutable.ValidDynamicRefreshRates.push_back( pMode->vrefresh );
+							}
+						}
+
+						std::sort( m_Mutable.ValidDynamicRefreshRates.begin(), m_Mutable.ValidDynamicRefreshRates.end() );
+					}
 				}
 			}
 		}
