@@ -898,10 +898,6 @@ bool g_bChangeDynamicRefreshBasedOnGameOpenRatherThanActive = false;
 
 bool steamcompmgr_window_should_limit_fps( steamcompmgr_win_t *w )
 {
-	// VRR + FPS Limit needs another approach.
-	if ( GetBackend()->IsVRRActive() )
-		return false;
-
 	return w && !window_is_steam( w ) && !w->isOverlay && !w->isExternalOverlay;
 }
 
@@ -5076,6 +5072,8 @@ steamcompmgr_flush_frame_done( steamcompmgr_win_t *w )
 		w->unlockedForFrameCallback = false;
 		w->receivedDoneCommit = false;
 
+		w->last_commit_first_latch_time = timespec_to_nanos(now);
+
 		// Acknowledge commit once.
 		wlserver_lock();
 
@@ -5093,35 +5091,58 @@ steamcompmgr_flush_frame_done( steamcompmgr_win_t *w )
 	}
 }
 
-static bool steamcompmgr_should_vblank_window( bool bShouldLimitFPS, uint64_t vblank_idx )
-{
-	if ( GetBackend()->IsVRRActive() )
-		return true;
+static std::optional<uint64_t> s_oLowestFPSLimitScheduleVRR;
 
+static bool steamcompmgr_should_vblank_window( bool bShouldLimitFPS, uint64_t vblank_idx, steamcompmgr_win_t *w = nullptr, uint64_t now = 0 )
+{
 	bool bSendCallback = true;
 
 	int nRefreshHz = gamescope::ConvertmHzToHz( g_nNestedRefresh ? g_nNestedRefresh : g_nOutputRefresh );
 	int nTargetFPS = g_nSteamCompMgrTargetFPS;
-	if ( g_nSteamCompMgrTargetFPS && bShouldLimitFPS && nRefreshHz > nTargetFPS )
-	{
-		int nVblankDivisor = nRefreshHz / nTargetFPS;
 
-		if ( vblank_idx % nVblankDivisor != 0 )
-			bSendCallback = false;
+	if ( GetBackend()->IsVRRActive() )
+	{
+		bool bCloseEnough = std::abs( g_nSteamCompMgrTargetFPS - nRefreshHz ) < 2;
+
+		if ( g_nSteamCompMgrTargetFPS && bShouldLimitFPS && w && !bCloseEnough )
+		{
+			uint64_t schedule = w->last_commit_first_latch_time + g_SteamCompMgrLimitedAppRefreshCycle;
+
+			static constexpr uint64_t k_ulVRRScheduleFudge = 200'000; // 0.2ms
+			if ( now + k_ulVRRScheduleFudge < schedule )
+			{
+				bSendCallback = false;
+
+				if ( !s_oLowestFPSLimitScheduleVRR )
+					s_oLowestFPSLimitScheduleVRR = schedule;
+				else
+					s_oLowestFPSLimitScheduleVRR = std::min( *s_oLowestFPSLimitScheduleVRR, schedule );
+			}
+		}
+	}
+	else
+	{
+		if ( g_nSteamCompMgrTargetFPS && bShouldLimitFPS && nRefreshHz > nTargetFPS )
+		{
+			int nVblankDivisor = nRefreshHz / nTargetFPS;
+
+			if ( vblank_idx % nVblankDivisor != 0 )
+				bSendCallback = false;
+		}
 	}
 
 	return bSendCallback;
 }
 
-static bool steamcompmgr_should_vblank_window( steamcompmgr_win_t *w, uint64_t vblank_idx )
+static bool steamcompmgr_should_vblank_window( steamcompmgr_win_t *w, uint64_t vblank_idx, uint64_t now )
 {
-	return steamcompmgr_should_vblank_window( steamcompmgr_window_should_limit_fps( w ), vblank_idx );
+	return steamcompmgr_should_vblank_window( steamcompmgr_window_should_limit_fps( w ), vblank_idx, w, now );
 }
 
 static void
-steamcompmgr_latch_frame_done( steamcompmgr_win_t *w, uint64_t vblank_idx )
+steamcompmgr_latch_frame_done( steamcompmgr_win_t *w, uint64_t vblank_idx, uint64_t now )
 {
-	if ( steamcompmgr_should_vblank_window( w, vblank_idx ) )
+	if ( steamcompmgr_should_vblank_window( w, vblank_idx, now ) )
 	{
 		w->unlockedForFrameCallback = true;
 	}
@@ -6145,12 +6166,27 @@ void handle_done_commits_xwayland( xwayland_ctx_t *ctx, bool vblank, uint64_t vb
 
 	uint64_t now = get_time_in_nanos();
 
-	vblank = vblank && steamcompmgr_should_vblank_window( true, vblank_idx );
-
 	// very fast loop yes
 	for ( auto& entry : ctx->doneCommits.listCommitsDone )
 	{
-		if (entry.fifo && (!vblank || fifo_win_seqs.count(entry.winSeq) > 0))
+		bool entry_vblank = vblank;
+
+		if ( GetBackend()->IsVRRActive() )
+		{
+			for ( steamcompmgr_win_t *w = ctx->list; w; w = w->xwayland().next )
+			{
+				if (w->seq != entry.winSeq)
+					continue;
+
+				entry_vblank = entry_vblank && steamcompmgr_should_vblank_window( true, vblank_idx, w, now );
+			}
+		}
+		else
+		{
+			entry_vblank = entry_vblank && steamcompmgr_should_vblank_window( true, vblank_idx );
+		}
+
+		if (entry.fifo && (!entry_vblank || fifo_win_seqs.count(entry.winSeq) > 0))
 		{
 			commits_before_their_time.push_back( entry );
 			continue;
@@ -7414,6 +7450,11 @@ void LaunchNestedChildren( char **ppPrimaryChildArgv )
 	}
 }
 
+static gamescope::CTimerFunction g_FPSLimitVRRTimer{ []
+{
+	// do nothing.
+}};
+
 void
 steamcompmgr_main(int argc, char **argv)
 {
@@ -7547,6 +7588,7 @@ steamcompmgr_main(int argc, char **argv)
 	}
 
 	g_SteamCompMgrWaiter.AddWaitable( &GetVBlankTimer() );
+	g_SteamCompMgrWaiter.AddWaitable( &g_FPSLimitVRRTimer );
 	GetVBlankTimer().ArmNextVBlank( true );
 
 	{
@@ -7722,18 +7764,20 @@ steamcompmgr_main(int argc, char **argv)
 		if ( vblank )
 		{
 			{
+				uint64_t now = get_time_in_nanos();
+
 				gamescope_xwayland_server_t *server = NULL;
 				for (size_t i = 0; (server = wlserver_get_xwayland_server(i)); i++)
 				{
 					for (steamcompmgr_win_t *w = server->ctx->list; w; w = w->xwayland().next)
 					{
-						steamcompmgr_latch_frame_done( w, vblank_idx );
+						steamcompmgr_latch_frame_done( w, vblank_idx, now );
 					}
 				}
 
 				for ( const auto& xdg_win : g_steamcompmgr_xdg_wins )
 				{
-					steamcompmgr_latch_frame_done( xdg_win.get(), vblank_idx );
+					steamcompmgr_latch_frame_done( xdg_win.get(), vblank_idx, now );
 				}
 			}
 		}
@@ -7757,18 +7801,36 @@ steamcompmgr_main(int argc, char **argv)
 
 		steamcompmgr_check_xdg(vblank, vblank_idx);
 
+		if ( s_oLowestFPSLimitScheduleVRR )
+		{
+			g_FPSLimitVRRTimer.ArmTimer( *s_oLowestFPSLimitScheduleVRR );
+			s_oLowestFPSLimitScheduleVRR = std::nullopt;
+		}
+
 		if ( vblank )
 		{
 			vblank_idx++;
 
 			int nRealRefreshmHz = g_nNestedRefresh ? g_nNestedRefresh : g_nOutputRefresh;
-			int nRealRefreshHz = gamescope::ConvertmHzToHz( nRealRefreshmHz );
-			int nTargetFPS = g_nSteamCompMgrTargetFPS ? g_nSteamCompMgrTargetFPS : nRealRefreshHz;
-			nTargetFPS = std::min<int>( nTargetFPS, nRealRefreshHz );
-			int nVblankDivisor = nRealRefreshHz / nTargetFPS;
-
 			g_SteamCompMgrAppRefreshCycle = gamescope::mHzToRefreshCycle( nRealRefreshmHz );
-			g_SteamCompMgrLimitedAppRefreshCycle = g_SteamCompMgrAppRefreshCycle * nVblankDivisor;
+			g_SteamCompMgrLimitedAppRefreshCycle = g_SteamCompMgrAppRefreshCycle;
+			if ( g_nSteamCompMgrTargetFPS )
+			{
+				int nRealRefreshHz = gamescope::ConvertmHzToHz( nRealRefreshmHz );
+				int nTargetFPS = g_nSteamCompMgrTargetFPS;
+				nTargetFPS = std::min<int>( nTargetFPS, nRealRefreshHz );
+
+				if ( GetBackend()->IsVRRActive() )
+				{
+					g_SteamCompMgrLimitedAppRefreshCycle = gamescope::mHzToRefreshCycle( gamescope::ConvertHztomHz( nTargetFPS ) );
+				}
+				else
+				{
+					int nVblankDivisor = nRealRefreshHz / nTargetFPS;
+
+					g_SteamCompMgrLimitedAppRefreshCycle = g_SteamCompMgrAppRefreshCycle * nVblankDivisor;
+				}
+			}
 		}
 
 		// Handle presentation-time stuff
