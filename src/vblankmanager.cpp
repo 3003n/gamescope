@@ -113,9 +113,7 @@ namespace gamescope
 			// to not account for vertical front porch when dealing with the vblank
 			// drm_commit is going to target?
 			// Need to re-test that.
-			const uint64_t ulRedZone = eScreenType == GAMESCOPE_SCREEN_TYPE_INTERNAL
-				? m_ulVBlankDrawBufferRedZone
-				: std::min<uint64_t>( m_ulVBlankDrawBufferRedZone, ( m_ulVBlankDrawBufferRedZone * 60'000 * nRefreshRate ) / 60'000 );
+			const uint64_t ulRedZone = m_ulVBlankDrawBufferRedZone + g_nsVsync;
 
 			const uint64_t ulDecayAlpha = m_ulVBlankRateOfDecayPercentage; // eg. 980 = 98%
 
