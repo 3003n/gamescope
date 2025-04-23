@@ -20,6 +20,7 @@ extern uint32_t g_nOutputWidth;
 extern uint32_t g_nOutputHeight;
 extern bool g_bForceRelativeMouse;
 extern int g_nOutputRefresh; // mHz
+extern long g_nsVsync;       // ns
 extern bool g_bOutputHDREnabled;
 extern bool g_bForceInternal;
 extern bool g_bUseRotationShader;

@@ -114,6 +114,11 @@ namespace gamescope
 		return nRefresh;
 	}
 
+	static int32_t GetVblankNs(const drmModeModeInfo *mode)
+	{
+		return (mode->vsync_start - mode->vdisplay) * 1'000'000'000ll / mode->vrefresh / mode->vtotal;
+	}
+
 	template <typename T>
 	using CAutoDeletePtr = std::unique_ptr<T, void(*)(T*)>;
 
@@ -3076,6 +3081,9 @@ bool drm_set_mode( struct drm_t *drm, const drmModeModeInfo *mode )
 
 	g_nOutputRefresh = gamescope::GetModeRefresh( mode );
 	g_nDynamicRefreshHz = 0;
+
+	g_nsVsync = gamescope::GetVblankNs( mode );
+	drm_log.infof("Vblank ns: %lu", g_nsVsync);
 
 	update_drm_effective_orientations(drm, mode);
 
