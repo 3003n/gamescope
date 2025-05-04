@@ -2282,7 +2282,7 @@ namespace gamescope
 				if ( g_customRefreshRates.size() > 0 && GetScreenType() == GAMESCOPE_SCREEN_TYPE_INTERNAL )
 					m_Mutable.ValidDynamicRefreshRates = g_customRefreshRates;
 				// Unknown display, see if there are any other refresh rates in the EDID we can get.
-				else if ( GetScreenType() == GAMESCOPE_SCREEN_TYPE_INTERNAL )
+				else
 				{
 					const drmModeModeInfo *pPreferredMode = find_mode( m_pConnector.get(), 0, 0, 0 );
 
