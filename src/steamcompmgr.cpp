@@ -2354,7 +2354,7 @@ paint_all( bool async, bool dpms )
 				float opacityScale = g_bPendingFade
 					? 0.0f
 					: ((currentTime - fadeOutStartTime) / (float)g_FadeOutDuration);
-		
+	
 				paint_cached_base_layer(g_HeldCommits[HELD_COMMIT_FADE], g_CachedPlanes[HELD_COMMIT_FADE], &frameInfo, 1.0f - opacityScale, false);
 				paint_window(w, w, &frameInfo, global_focus.cursor, PaintWindowFlag::BasePlane | PaintWindowFlag::FadeTarget | PaintWindowFlag::DrawBorders, opacityScale, override);
 			}
@@ -6122,29 +6122,30 @@ bool handle_done_commit( steamcompmgr_win_t *w, xwayland_ctx_t *ctx, uint64_t co
 			w->commit_queue[ j ]->present_margin = earliestPresentTime - earliestLatchTime;
 			bFoundWindow = true;
 
-			// Window just got a new available commit, determine if that's worth a repaint
+					// Window just got a new available commit, determine if that's worth a repaint
 
-			// If this is an overlay that we're presenting, repaint
-			if ( w == global_focus.overlayWindow && w->opacity != TRANSLUCENT )
+		// If this is an overlay that we're presenting, repaint
+		if ( w == global_focus.overlayWindow && w->opacity != TRANSLUCENT )
+		{
+			hasRepaintNonBasePlane = true;
+		}
+
+		if ( w == global_focus.notificationWindow && w->opacity != TRANSLUCENT )
 			{
 				hasRepaintNonBasePlane = true;
 			}
 
-			if ( w == global_focus.notificationWindow && w->opacity != TRANSLUCENT )
+			// matt: the performance overlay in Steam will interfere with VRR if we let this repaint.
+			// This has been broken since the logic for external overlay repaints was moved out of
+			// outdatedInteractiveFocus. It can cause displays to jump between the focused app's
+			// refresh rate and the maximum panel refresh rate when presenting any type of overlay,
+			// creating noticeable VRR flicker in the process.
+			// TODO: fix this properly for all overlays, including Steam notifications and QAM
+			// HACK: If VRR is active, prevent external overlays, i.e. mangoapp, from repainting the base plane
+			if ( ( w == global_focus.externalOverlayWindow && w->opacity != TRANSLUCENT ) &&
+			     ( GetBackend()->GetCurrentConnector() && !GetBackend()->GetCurrentConnector()->IsVRRActive() ) )
 			{
 				hasRepaintNonBasePlane = true;
-			}
-
-			// External overlays, e.g., mangohud, should not be able to repaint when VRR is on
-			if ( !GetBackend()->IsVRRActive() && w == global_focus.externalOverlayWindow && w->opacity != TRANSLUCENT )
-			{
-				hasRepaintNonBasePlane = true;
-			}
-
-			if ( w->outdatedInteractiveFocus )
-			{
-				MakeFocusDirty();
-				w->outdatedInteractiveFocus = false;
 			}
 
 			// If this is the main plane, repaint
@@ -6165,6 +6166,12 @@ bool handle_done_commit( steamcompmgr_win_t *w, xwayland_ctx_t *ctx, uint64_t co
 				if ( !cv_paint_debug_pause_base_plane )
 					g_HeldCommits[ HELD_COMMIT_BASE ] = w->commit_queue[ j ];
 				hasRepaint = true;
+			}
+
+			if ( w->outdatedInteractiveFocus )
+			{
+				MakeFocusDirty();
+				w->outdatedInteractiveFocus = false;
 			}
 
 			break;
