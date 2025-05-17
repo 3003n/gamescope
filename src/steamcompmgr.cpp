@@ -6132,8 +6132,8 @@ bool handle_done_commit( steamcompmgr_win_t *w, xwayland_ctx_t *ctx, uint64_t co
 				hasRepaintNonBasePlane = true;
 			}
 
-			// If this is an external overlay, repaint
-			if ( w == global_focus.externalOverlayWindow && w->opacity != TRANSLUCENT )
+			// External overlays, e.g., mangohud, should not be able to repaint when VRR is on
+			if ( !GetBackend()->IsVRRActive() && w == global_focus.externalOverlayWindow && w->opacity != TRANSLUCENT )
 			{
 				hasRepaintNonBasePlane = true;
 			}
