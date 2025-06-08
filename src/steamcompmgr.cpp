@@ -3968,8 +3968,12 @@ determine_and_apply_focus()
 		if ( global_focus.focusWindow )
 		{
 			GetBackend()->GetNestedHints()->SetVisible( true );
-			GetBackend()->GetNestedHints()->SetTitle( global_focus.focusWindow->title );
-			GetBackend()->GetNestedHints()->SetIcon( global_focus.focusWindow->icon );
+			if ( global_focus.focusWindow != previous_focus.focusWindow )
+			{
+				// Set title and icon for the focused window
+				GetBackend()->GetNestedHints()->SetTitle( global_focus.focusWindow->title );
+				GetBackend()->GetNestedHints()->SetIcon( global_focus.focusWindow->icon );
+			}
 		}
 		else
 		{
@@ -4700,7 +4704,7 @@ damage_win(xwayland_ctx_t *ctx, XDamageNotifyEvent *de)
 	if (!w)
 		return;
 
-	if ((w->isOverlay || w->isExternalOverlay) && !w->opacity)
+	if (w->IsAnyOverlay() && !w->opacity)
 		return;
 
 	// First damage event we get, compute focus; we only want to focus damaged
