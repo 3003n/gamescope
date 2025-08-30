@@ -23,6 +23,7 @@ struct wlr_dmabuf_attributes;
 struct FrameInfo_t;
 
 extern bool steamMode;
+extern bool disableInternalPq;
 
 namespace gamescope
 {
