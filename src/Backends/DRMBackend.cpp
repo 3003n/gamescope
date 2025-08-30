@@ -2465,7 +2465,13 @@ namespace gamescope
 				 pHDRStaticMetadata && pHDRStaticMetadata->eotfs && pHDRStaticMetadata->eotfs->pq )
 			{
 				m_Mutable.HDR.bExposeHDRSupport = true;
-				m_Mutable.HDR.eOutputEncodingEOTF = EOTF_PQ;
+				if (GetScreenType() == GAMESCOPE_SCREEN_TYPE_INTERNAL)
+					// Current handheld internal displays have issues
+					// with PQ, e.g., Ayaneo 3, Steam Deck etc.
+					// Use Gamma 2.2 as the safest option for now.
+					m_Mutable.HDR.eOutputEncodingEOTF = EOTF_Gamma22;
+				else
+					m_Mutable.HDR.eOutputEncodingEOTF = EOTF_PQ;
 				m_Mutable.HDR.uMaxContentLightLevel =
 					pHDRStaticMetadata->desired_content_max_luminance
 					? nits_to_u16( pHDRStaticMetadata->desired_content_max_luminance )
