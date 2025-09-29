@@ -29,6 +29,7 @@
  *   says above. Not that I can really do anything about it
  */
 
+#include "backend.h"
 #include "gamescope_shared.h"
 #include "xwayland_ctx.hpp"
 #include <X11/X.h>
@@ -2064,6 +2065,9 @@ paint_window_commit( const gamescope::Rc<commit_t> &lastCommit, steamcompmgr_win
 	float baseScaleRatio_x = 1.0;
 	float baseScaleRatio_y = 1.0;
 
+	if ( !GetBackend()->ShouldFitWindows() )
+		fit = nullptr;
+
 	// Exit out if we have no window or
 	// no commit.
 	//
@@ -3658,8 +3662,13 @@ found:;
 			continue;
 		}
 
+		if ( gamescope::cv_backend_virtual_connector_strategy == gamescope::VirtualConnectorStrategies::SteamControlled )
+		{
+			if ( !( win_has_game_id( w ) || window_is_steam( w ) || w->isSteamStreamingClient ) )	
+				continue;
+		}
+
 		if ( w->xwayland().a.map_state == IsViewable && w->xwayland().a.c_class == InputOutput &&
-			( win_has_game_id( w ) || window_is_steam( w ) || w->isSteamStreamingClient ) &&
 			 (w->opacity > TRANSLUCENT || w->isSteamStreamingClient ) )
 		{
 			vecPossibleFocusWindows.push_back( w );
@@ -3726,11 +3735,21 @@ void xwayland_ctx_t::DetermineAndApplyFocus( const std::vector< steamcompmgr_win
 		}
 	}
 
-	gamescope::VirtualConnectorStrategy eStrategy = gamescope::cv_backend_virtual_connector_strategy == gamescope::VirtualConnectorStrategies::SteamControlled
-		? gamescope::VirtualConnectorStrategies::SteamControlled
-		: gamescope::VirtualConnectorStrategies::PerWindow;
+	gamescope::VirtualConnectorStrategy eStrategy = gamescope::VirtualConnectorStrategies::PerWindow;
+	gamescope::VirtualConnectorKey_t ulKey = 0;
 
-	pick_primary_focus_and_override( &ctx->focus, ctx->focusControlWindow, vecPossibleFocusWindows, false, vecFocuscontrolAppIDs, 0, eStrategy );
+	if ( ctx->xwayland_server->get_index() != 0 )
+	{
+		eStrategy = gamescope::VirtualConnectorStrategies::SteamControlled;
+		ulKey = 0;
+	}
+	else if ( GetBackend() && GetBackend()->GetCurrentConnector() )
+	{
+		eStrategy = gamescope::cv_backend_virtual_connector_strategy;
+		ulKey = GetBackend()->GetCurrentConnector()->GetVirtualConnectorKey();
+	}
+
+	pick_primary_focus_and_override( &ctx->focus, ctx->focusControlWindow, vecPossibleFocusWindows, false, vecFocuscontrolAppIDs, ulKey, eStrategy );
 
 	if ( inputFocus == NULL )
 	{
@@ -5040,15 +5059,23 @@ damage_win(xwayland_ctx_t *ctx, XDamageNotifyEvent *de)
 	if (w->IsAnyOverlay() && !w->opacity)
 		return;
 
+	bool bHasAppID = w->appID != 0;
+
+	if ( gamescope::cv_backend_virtual_connector_strategy != gamescope::VirtualConnectorStrategies::SteamControlled )
+	{
+		bHasAppID = true;
+	}
+
 	// First damage event we get, compute focus; we only want to focus damaged
 	// windows to have meaningful frames.
-	if (w->appID && w->xwayland().damage_sequence == 0)
+	/// FIXME APPID FOCUS STRATERGY FOR 
+	if (bHasAppID && w->xwayland().damage_sequence == 0)
 		MakeFocusDirty();
 
 	w->xwayland().damage_sequence = damageSequence++;
 
 	// If we just passed the focused window, we might be eliglible to take over
-	if ( focus && focus != w && w->appID &&
+	if ( focus && focus != w && bHasAppID &&
 		w->xwayland().damage_sequence > focus->xwayland().damage_sequence)
 		MakeFocusDirty();
 

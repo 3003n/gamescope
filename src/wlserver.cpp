@@ -1710,8 +1710,10 @@ void wlsession_close_kms()
 
 #endif
 
-gamescope_xwayland_server_t::gamescope_xwayland_server_t(wl_display *display)
+gamescope_xwayland_server_t::gamescope_xwayland_server_t(wl_display *display, int nIndex)
 {
+	m_nIndex = nIndex;
+
 	struct wlr_xwayland_server_options xwayland_options = {
 		.lazy = false,
 		.enable_wm = false,
@@ -2099,7 +2101,7 @@ bool wlserver_init( void ) {
 
 	for (int i = 0; i < g_nXWaylandCount; i++)
 	{
-		auto server = std::make_unique<gamescope_xwayland_server_t>(wlserver.display);
+		auto server = std::make_unique<gamescope_xwayland_server_t>(wlserver.display, i);
 		wlserver.wlr.xwayland_servers.emplace_back(std::move(server));
 	}
 
@@ -3196,7 +3198,7 @@ uint32_t wlserver_make_new_xwayland_server()
 {
 	assert( wlserver_is_lock_held() );
 
-	auto& server = wlserver.wlr.xwayland_servers.emplace_back(std::make_unique<gamescope_xwayland_server_t>(wlserver.display));
+	auto& server = wlserver.wlr.xwayland_servers.emplace_back(std::make_unique<gamescope_xwayland_server_t>(wlserver.display, (int)wlserver.wlr.xwayland_servers.size()));
 
 	while (!server->is_xwayland_ready()) {
 		wl_display_flush_clients(wlserver.display);

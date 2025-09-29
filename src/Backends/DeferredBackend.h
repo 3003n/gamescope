@@ -376,6 +376,11 @@ namespace gamescope
             return m_bJustInittedClient.exchange( false );
         }
 
+        bool ShouldFitWindows() override
+        {
+            return m_pChild->ShouldFitWindows();
+        }
+
 	protected:
 
 		virtual void OnBackendBlobDestroyed( BackendBlob *pBlob ) override

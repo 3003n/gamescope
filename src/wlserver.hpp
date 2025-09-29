@@ -57,7 +57,7 @@ bool wlserver_is_lock_held(void);
 class gamescope_xwayland_server_t
 {
 public:
-	gamescope_xwayland_server_t(wl_display *display);
+	gamescope_xwayland_server_t(wl_display *display, int nIndex);
 	~gamescope_xwayland_server_t();
 
 	void on_xwayland_ready(void *data);
@@ -86,6 +86,8 @@ public:
 
 	void update_output_info();
 
+	int get_index() const { return m_nIndex; }
+
 private:
 	struct wlr_xwayland_server *xwayland_server = NULL;
 	struct wl_listener xwayland_ready_listener = { .notify = xwayland_ready_callback };
@@ -97,6 +99,8 @@ private:
 
 	bool xwayland_ready = false;
 	_XDisplay *dpy = NULL;
+
+	int m_nIndex = 0;
 
 	std::mutex wayland_commit_lock;
 	std::vector<ResListEntry_t> wayland_commit_queue;

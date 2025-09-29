@@ -66,6 +66,13 @@ namespace gamescope
         return VirtualConnectorInSteamPerAppState() && ulKey == 769;
     }
 
+    static constexpr uint64_t k_ulNonSteamWindowBit = ( uint64_t( 1 ) << 63u );
+
+    static inline bool VirtualConnectorKeyIsNonSteamWindow( VirtualConnectorKey_t ulKey )
+    {
+        return VirtualConnectorInSteamPerAppState() && ( ulKey & k_ulNonSteamWindowBit ) == k_ulNonSteamWindowBit;
+    }
+
     static inline std::string_view VirtualConnectorStrategyToString( VirtualConnectorStrategy eStrategy )
     {
         switch ( eStrategy )
@@ -372,6 +379,8 @@ namespace gamescope
 
         virtual bool NewlyInitted() = 0;
 
+        virtual bool ShouldFitWindows() = 0;
+
         static IBackend *Get();
         template <typename T>
         static bool Set();
@@ -406,6 +415,8 @@ namespace gamescope
         virtual void ForwardFramebuffer( std::shared_ptr<IBackendPlane> &pPlane, IBackendFb *pFramebuffer, const void *pData ) override {}
 
         virtual bool NewlyInitted() override { return false; }
+
+        virtual bool ShouldFitWindows() override { return true; }
     };
 
     // This is a blob of data that may be associated with
