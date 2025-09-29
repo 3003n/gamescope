@@ -25,6 +25,7 @@
 #include <string.h>
 #include <thread>
 #include <mutex>
+#include <format>
 
 struct wlserver_input_method;
 
@@ -947,6 +948,11 @@ namespace gamescope
             }
         }
 
+        bool ShouldFitWindows() override
+        {
+            return false;
+        }
+
         vr::IVRIPCResourceManagerClient *GetIPCResourceManager()
         {
             return m_pIPCResourceManager;
@@ -1503,6 +1509,11 @@ namespace gamescope
 
         bNeedsFullComposite |= !!(g_uCompositeDebug & CompositeDebugFlag::Heatmap);
 
+        // Non-Steam windows NEVER use composition!
+        bool bExplicitNonSteam = VirtualConnectorKeyIsNonSteamWindow( GetVirtualConnectorKey() );
+        if ( bExplicitNonSteam )
+            bNeedsFullComposite = false;
+
         if ( !bNeedsFullComposite )
         {
             bool bNeedsBacking = true;
@@ -1601,6 +1612,8 @@ namespace gamescope
     }
     void COpenVRConnector::SetIcon( std::shared_ptr<std::vector<uint32_t>> uIconPixels )
     {
+        bool bExplicitNonSteam = VirtualConnectorKeyIsNonSteamWindow( GetVirtualConnectorKey() );
+
         if ( cv_vr_use_window_icons && uIconPixels && uIconPixels->size() >= 3 )
         {
             const uint32_t uWidth = (*uIconPixels)[0];
@@ -1620,7 +1633,7 @@ namespace gamescope
 
             vr::VROverlay()->SetOverlayRaw( GetPrimaryPlane()->GetOverlayThumbnail(), &(*uIconPixels)[2], uWidth, uHeight, sizeof(uint32_t) );
         }
-        else if ( m_pBackend->GetOverlayIcon() )
+        else if ( m_pBackend->GetOverlayIcon() && !bExplicitNonSteam )
         {
             vr::VROverlay()->SetOverlayFromFile( GetPrimaryPlane()->GetOverlayThumbnail(), m_pBackend->GetOverlayIcon() );
         }
@@ -1744,6 +1757,8 @@ namespace gamescope
 
         std::string sOverlayKey = m_pBackend->GetOverlayKey();
 
+        bool bExplicitNonSteam = false;
+
         VirtualConnectorStrategy eStrategy = cv_backend_virtual_connector_strategy;
         if ( !VirtualConnectorStrategyIsSingleOutput( eStrategy ) )
         {
@@ -1751,17 +1766,25 @@ namespace gamescope
             bool bIsSteam = VirtualConnectorKeyIsSteam( ulKey );
             if ( !bIsSteam )
             {
-                const char *pszAppOverlayKey = m_pBackend->GetAppOverlayKey();
-                if ( pszAppOverlayKey && *pszAppOverlayKey )
+                bExplicitNonSteam = VirtualConnectorKeyIsNonSteamWindow( ulKey );
+                if ( bExplicitNonSteam )
                 {
-                    sOverlayKey = pszAppOverlayKey;
-                    sOverlayKey += ".";
+                    sOverlayKey = std::format( "gamescope.{}.window.{}", wlserver_get_wl_display_name(), ulKey & ~gamescope::k_ulNonSteamWindowBit );
                 }
                 else
                 {
-                    sOverlayKey += ".app.";
+                    const char *pszAppOverlayKey = m_pBackend->GetAppOverlayKey();
+                    if ( pszAppOverlayKey && *pszAppOverlayKey )
+                    {
+                        sOverlayKey = pszAppOverlayKey;
+                        sOverlayKey += ".";
+                    }
+                    else
+                    {
+                        sOverlayKey += ".app.";
+                    }
+                    sOverlayKey += std::to_string( m_pConnector->GetVirtualConnectorKey() );
                 }
-                sOverlayKey += std::to_string( m_pConnector->GetVirtualConnectorKey() );
             }
         }
 
@@ -1787,7 +1810,7 @@ namespace gamescope
             vr::VROverlay()->SetOverlayCurvature	( m_hOverlay,  m_pBackend->GetPhysicalCurvature() );
             vr::VROverlay()->SetOverlayPreCurvePitch( m_hOverlay,  m_pBackend->GetPhysicalPreCurvePitch() );
 
-            if ( m_pBackend->GetOverlayIcon() )
+            if ( m_pBackend->GetOverlayIcon() && !bExplicitNonSteam )
             {
                 vr::EVROverlayError err = vr::VROverlay()->SetOverlayFromFile( m_hOverlayThumbnail, m_pBackend->GetOverlayIcon() );
                 if( err != vr::VROverlayError_None )
