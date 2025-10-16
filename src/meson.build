@@ -23,6 +23,8 @@ cap_dep = dependency('libcap', required: get_option('rt_cap'))
 epoll_dep = dependency('epoll-shim', required: false)
 sdl2_dep = dependency('SDL2', required: get_option('sdl2_backend'))
 avif_dep = dependency('libavif', version: '>=1.0.0', required: get_option('avif_screenshots'))
+pixman_dep = dependency('pixman-1')
+udev_dep = dependency('libudev')
 
 wlroots_dep = dependency(
   'wlroots-0.18',
@@ -197,7 +199,7 @@ gamescope_version = configure_file(
       xkbcommon, thread_dep, sdl2_dep, wlroots_dep,
       vulkan_dep, liftoff_dep, dep_xtst, dep_xmu, cap_dep, epoll_dep, pipewire_dep, librt_dep,
       stb_dep, displayinfo_dep, openvr_dep, dep_xcursor, avif_dep, dep_xi,
-      libdecor_dep, eis_dep, luajit_dep, libinput_dep, libsystemd_dep,
+      libdecor_dep, eis_dep, luajit_dep, libinput_dep, libsystemd_dep, pixman_dep, udev_dep,
     ],
     install: true,
     cpp_args: gamescope_cpp_args,
