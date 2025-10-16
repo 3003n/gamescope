@@ -25,7 +25,7 @@ sdl2_dep = dependency('SDL2', required: get_option('sdl2_backend'))
 avif_dep = dependency('libavif', version: '>=1.0.0', required: get_option('avif_screenshots'))
 
 wlroots_dep = dependency(
-  'wlroots',
+  'wlroots-0.18',
   version: ['>= 0.18.0', '< 0.19.0'],
   fallback: 'wlroots',
   default_options: ['default_library=static', 'examples=false', 'xwayland=enabled', 'backends=libinput', 'renderers=[]', 'allocators=[]', 'session=enabled'],
