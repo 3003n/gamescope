@@ -27,14 +27,14 @@ avif_dep = dependency('libavif', version: '>=1.0.0', required: get_option('avif_
 wlroots_dep = dependency(
   'wlroots',
   version: ['>= 0.18.0', '< 0.19.0'],
-  fallback: ['wlroots', 'wlroots'],
+  fallback: 'wlroots',
   default_options: ['default_library=static', 'examples=false', 'xwayland=enabled', 'backends=libinput', 'renderers=[]', 'allocators=[]', 'session=enabled'],
 )
 
 displayinfo_dep = dependency(
   'libdisplay-info',
   version: ['>= 0.0.0', '< 0.3.0'],
-  fallback: ['libdisplay-info', 'di_dep'],
+  fallback: 'libdisplay-info',
   default_options: ['default_library=static'],
 )
 
@@ -133,7 +133,7 @@ if drm_dep.found()
   liftoff_dep = dependency(
     'libliftoff',
     version: ['>= 0.5.0', '< 0.6.0'],
-    fallback: ['libliftoff', 'liftoff'],
+    fallback: 'libliftoff',
     default_options: ['default_library=static'],
   )
 else
