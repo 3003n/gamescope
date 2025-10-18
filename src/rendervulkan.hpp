@@ -412,6 +412,7 @@ gamescope::OwningRc<CVulkanTexture> vulkan_create_texture_from_wlr_buffer( struc
 
 std::optional<uint64_t> vulkan_composite( struct FrameInfo_t *frameInfo, gamescope::Rc<CVulkanTexture> pScreenshotTexture, bool partial, gamescope::Rc<CVulkanTexture> pOutputOverride = nullptr, bool increment = true, std::unique_ptr<CVulkanCmdBuffer> pInCommandBuffer = nullptr, bool applyRotation = false );
 void vulkan_wait( uint64_t ulSeqNo, bool bReset );
+int vulkan_export_sync_file( uint64_t ulSeqNo );
 gamescope::Rc<CVulkanTexture> vulkan_get_last_output_image( bool partial, bool defer );
 gamescope::Rc<CVulkanTexture> vulkan_acquire_screenshot_texture(uint32_t width, uint32_t height, bool exportable, uint32_t drmFormat, EStreamColorspace colorspace = k_EStreamColorspace_Unknown);
 
@@ -782,6 +783,9 @@ public:
 	void wait(uint64_t sequence, bool reset = true);
 	void waitIdle(bool reset = true);
 	void garbageCollect();
+	
+	// Export last submit as sync_file for DRM fence synchronization
+	int exportLastSubmitAsSyncFile();
 	inline VkDescriptorSet descriptorSet()
 	{
 		VkDescriptorSet ret = m_descriptorSets[m_currentDescriptorSet];
@@ -897,6 +901,7 @@ protected:
 	uint32_t m_uploadBufferOffset = 0;
 
 	VkSemaphore m_scratchTimelineSemaphore;
+	VkSemaphore m_exportSemaphore = VK_NULL_HANDLE;  // Binary semaphore for exporting sync_file
 	std::atomic<uint64_t> m_submissionSeqNo = { 0 };
 	std::vector<std::unique_ptr<CVulkanCmdBuffer>> m_unusedCmdBufs;
 	std::map<uint64_t, std::unique_ptr<CVulkanCmdBuffer>> m_pendingCmdBufs;

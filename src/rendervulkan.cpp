@@ -1023,6 +1023,22 @@ bool CVulkanDevice::createScratchResources()
 		return false;
 	}
 
+	// Create binary semaphore for exporting sync_file to DRM
+	VkExportSemaphoreCreateInfo exportInfo = {
+		.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO,
+		.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
+	};
+	VkSemaphoreCreateInfo exportSemCreateInfo = {
+		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+		.pNext = &exportInfo,
+	};
+	res = vk.CreateSemaphore( device(), &exportSemCreateInfo, NULL, &m_exportSemaphore );
+	if ( res != VK_SUCCESS )
+	{
+		vk_errorf( res, "vkCreateSemaphore (export) failed" );
+		return false;
+	}
+
 	return true;
 }
 
@@ -1279,6 +1295,11 @@ uint64_t CVulkanDevice::submitInternal( CVulkanCmdBuffer* cmdBuffer )
 		ulSignalPoints.push_back( dep.ulPoint );
 	}
 
+	// Add binary semaphore for sync_file export
+	// Binary semaphores use value 0 in VkTimelineSemaphoreSubmitInfo (ignored)
+	pSignalSemaphores.push_back( m_exportSemaphore );
+	ulSignalPoints.push_back( 0 );
+
 	for ( auto &dep : cmdBuffer->GetExternalDependencies() )
 	{
 		pWaitSemaphores.push_back( dep.pTimelineSemaphore->pVkSemaphore );
@@ -1474,6 +1495,25 @@ void CVulkanDevice::wait(uint64_t sequence, bool reset)
 void CVulkanDevice::waitIdle(bool reset)
 {
 	wait(m_submissionSeqNo, reset);
+}
+
+int CVulkanDevice::exportLastSubmitAsSyncFile()
+{
+	// Export the binary semaphore as a sync_file fd for DRM IN_FENCE_FD
+	const VkSemaphoreGetFdInfoKHR getFdInfo = {
+		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR,
+		.semaphore = m_exportSemaphore,
+		.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
+	};
+	
+	int syncFileFd = -1;
+	VkResult res = vk.GetSemaphoreFdKHR(device(), &getFdInfo, &syncFileFd);
+	if (res != VK_SUCCESS) {
+		vk_errorf(res, "vkGetSemaphoreFdKHR failed");
+		return -1;
+	}
+	
+	return syncFileFd;
 }
 
 void CVulkanDevice::resetCmdBuffers(uint64_t sequence)
@@ -4255,6 +4295,12 @@ std::optional<uint64_t> vulkan_composite( struct FrameInfo_t *frameInfo, gamesco
 void vulkan_wait( uint64_t ulSeqNo, bool bReset )
 {
 	return g_device.wait( ulSeqNo, bReset );
+}
+
+int vulkan_export_sync_file( uint64_t ulSeqNo )
+{
+	// Export the last submit as a sync_file for explicit DRM synchronization
+	return g_device.exportLastSubmitAsSyncFile();
 }
 
 gamescope::Rc<CVulkanTexture> vulkan_get_last_output_image( bool partial, bool defer )

@@ -1160,6 +1160,7 @@ extern bool env_to_bool(const char *env);
 
 uint32_t g_uAlwaysSignalledSyncobj = 0;
 int g_nAlwaysSignalledSyncFile = -1;
+int g_nCompositeSyncFile = -1;  // Sync file fd for composite operation
 
 static void
 gamescope_liftoff_log_handler(enum liftoff_log_priority liftoff_priority, const char *fmt, va_list args)
@@ -2606,17 +2607,32 @@ drm_prepare_liftoff( struct drm_t *drm, const struct FrameInfo_t *frameInfo, boo
 			const FrameInfo_t::Layer_t *pLayer = &frameInfo->layers[ i ];
 			gamescope::CDRMFb *pDrmFb = static_cast<gamescope::CDRMFb *>( pLayer->tex ? pLayer->tex->GetBackendFb() : nullptr );
 
-			if ( pDrmFb == nullptr )
-			{
-				drm_log.debugf("drm_prepare_liftoff: layer %d has no FB", i );
-				return -EINVAL;
-			}
+		if ( pDrmFb == nullptr )
+		{
+			drm_log.debugf("drm_prepare_liftoff: layer %d has no FB", i );
+			return -EINVAL;
+		}
 
-			const int nFence = cv_drm_debug_disable_in_fence_fd ? -1 : g_nAlwaysSignalledSyncFile;
+		// Use composite sync_file for first layer if available (explicit sync)
+		// Otherwise fall back to always-signalled fence
+		int nFence;
+		if ( cv_drm_debug_disable_in_fence_fd )
+		{
+			nFence = -1;
+		}
+		else if ( i == 0 && g_nCompositeSyncFile >= 0 )
+		{
+			nFence = g_nCompositeSyncFile;
+		}
+		else
+		{
+			nFence = g_nAlwaysSignalledSyncFile;
+			if ( i == 0 )
+				drm_log.warnf("→ Layer %d using fallback fence (no explicit sync!)", i);
+		}
 
-
-			liftoff_layer_set_property( drm->lo_layers[ i ], "FB_ID", pDrmFb->GetFbId());
-			liftoff_layer_set_property( drm->lo_layers[ i ], "IN_FENCE_FD", nFence );
+		liftoff_layer_set_property( drm->lo_layers[ i ], "FB_ID", pDrmFb->GetFbId());
+		liftoff_layer_set_property( drm->lo_layers[ i ], "IN_FENCE_FD", nFence );
 			drm->m_FbIdsInRequest.emplace_back( pDrmFb );
 
 			liftoff_layer_set_property( drm->lo_layers[ i ], "zpos", entry.layerState[i].zpos );
@@ -3673,19 +3689,31 @@ namespace gamescope
 			if ( bDefer && !!( g_uCompositeDebug & CompositeDebugFlag::Markers ) )
 				g_uCompositeDebug |= CompositeDebugFlag::Markers_Partial;
 
-			std::optional oCompositeResult = vulkan_composite( &compositeFrameInfo, nullptr, !bNeedsFullComposite, nullptr, true, nullptr, g_bEnableDRMRotationShader );
+		std::optional oCompositeResult = vulkan_composite( &compositeFrameInfo, nullptr, !bNeedsFullComposite, nullptr, true, nullptr, g_bEnableDRMRotationShader );
 
-			m_bWasCompositing = true;
+		m_bWasCompositing = true;
 
-			g_uCompositeDebug &= ~CompositeDebugFlag::Markers_Partial;
+		g_uCompositeDebug &= ~CompositeDebugFlag::Markers_Partial;
 
-			if ( !oCompositeResult )
-			{
-				xwm_log.errorf("vulkan_composite failed");
-				return -EINVAL;
-			}
+		if ( !oCompositeResult )
+		{
+			xwm_log.errorf("vulkan_composite failed");
+			return -EINVAL;
+		}
 
+		// Export composite operation as sync_file for explicit DRM synchronization
+		// Note: DRM will take ownership and close the fd, don't close it manually
+		g_nCompositeSyncFile = vulkan_export_sync_file( *oCompositeResult );
+		if ( g_nCompositeSyncFile < 0 )
+		{
+			drm_log.errorf("Failed to export composite fence, falling back to sync wait");
 			vulkan_wait( *oCompositeResult, true );
+			g_nCompositeSyncFile = g_nAlwaysSignalledSyncFile;
+		}
+		else
+		{
+			// Explicit sync working - no CPU wait needed
+		}
 
 			FrameInfo_t presentCompFrameInfo = {};
 			presentCompFrameInfo.allowVRR = pFrameInfo->allowVRR;
@@ -3809,7 +3837,17 @@ namespace gamescope
 				}
 			}
 
-			return Commit( &compositeFrameInfo );
+			int nCommitResult = Commit( &compositeFrameInfo );
+			
+			// Close the composite sync_file after commit
+			// DRM has either duplicated it or failed; either way we're done with it
+			if ( g_nCompositeSyncFile >= 0 && g_nCompositeSyncFile != g_nAlwaysSignalledSyncFile )
+			{
+				close( g_nCompositeSyncFile );
+				g_nCompositeSyncFile = -1;
+			}
+			
+			return nCommitResult;
 		}
 
 		virtual void DirtyState( bool bForce, bool bForceModeset ) override
