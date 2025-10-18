@@ -5,6 +5,8 @@
 #include <atomic>
 #include <vector>
 
+#include "gamescope_shared.h"
+
 extern const char *gamescope_optstring;
 extern const struct option *gamescope_options;
 
@@ -25,6 +27,7 @@ extern bool g_bOutputHDREnabled;
 extern bool g_bForceInternal;
 extern bool g_bUseRotationShader;
 extern bool g_bEnableDRMRotationShader;
+extern GamescopePanelOrientation g_eDRMRotationShaderOrientation;
 
 extern bool g_bFullscreen;
 
