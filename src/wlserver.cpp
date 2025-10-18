@@ -2858,6 +2858,13 @@ static void apply_touchscreen_orientation(GamescopePanelOrientation orientation,
 	double tx = 0;
 	double ty = 0;
 
+	
+	// If using rotation shader, use the shader's rotation orientation instead
+	if (g_bEnableDRMRotationShader)
+	{
+		orientation = g_eDRMRotationShaderOrientation;
+	}
+	
 	switch ( orientation )
 	{
 		default:
@@ -2878,11 +2885,6 @@ static void apply_touchscreen_orientation(GamescopePanelOrientation orientation,
 			tx = *y;
 			ty = 1.0 - *x;
 			break;
-	}
-
-	if (g_bEnableDRMRotationShader) {
-		tx = 1.0 - *y;
-		ty = *x;
 	}
 
 	*x = tx;
