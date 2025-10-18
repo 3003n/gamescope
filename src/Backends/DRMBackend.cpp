@@ -2153,11 +2153,55 @@ namespace gamescope
 		if (g_bEnableDRMRotationShader)
 		{
 			drm_log.infof("Using rotation shader");
-			if (g_DesiredInternalOrientation == GAMESCOPE_PANEL_ORIENTATION_270) {
-				m_ChosenOrientation = GAMESCOPE_PANEL_ORIENTATION_180;
-			} else {
-				m_ChosenOrientation = GAMESCOPE_PANEL_ORIENTATION_0;
+			
+			// Determine the rotation angle to apply via shader
+			if (g_DesiredInternalOrientation != GAMESCOPE_PANEL_ORIENTATION_AUTO)
+			{
+				// User explicitly specified orientation
+				g_eDRMRotationShaderOrientation = g_DesiredInternalOrientation;
+				drm_log.infof("User specified orientation: %d (0=0°, 1=270°, 2=90°, 3=180°)", (int)g_eDRMRotationShaderOrientation);
 			}
+			else
+			{
+				// Auto-detect orientation
+				if ( this->GetProperties().panel_orientation )
+				{
+					switch ( this->GetProperties().panel_orientation->GetCurrentValue() )
+					{
+						case DRM_MODE_PANEL_ORIENTATION_NORMAL:
+							g_eDRMRotationShaderOrientation = GAMESCOPE_PANEL_ORIENTATION_0;
+							break;
+						case DRM_MODE_PANEL_ORIENTATION_BOTTOM_UP:
+							g_eDRMRotationShaderOrientation = GAMESCOPE_PANEL_ORIENTATION_180;
+							break;
+						case DRM_MODE_PANEL_ORIENTATION_LEFT_UP:
+							g_eDRMRotationShaderOrientation = GAMESCOPE_PANEL_ORIENTATION_90;
+							break;
+						case DRM_MODE_PANEL_ORIENTATION_RIGHT_UP:
+							g_eDRMRotationShaderOrientation = GAMESCOPE_PANEL_ORIENTATION_270;
+							break;
+						default:
+							g_eDRMRotationShaderOrientation = GAMESCOPE_PANEL_ORIENTATION_0;
+							break;
+					}
+				}
+				else if ( pMode )
+				{
+					// Auto-detect portrait mode for internal displays
+					g_eDRMRotationShaderOrientation = pMode->hdisplay < pMode->vdisplay
+						? GAMESCOPE_PANEL_ORIENTATION_270
+						: GAMESCOPE_PANEL_ORIENTATION_0;
+				}
+				else
+				{
+					g_eDRMRotationShaderOrientation = GAMESCOPE_PANEL_ORIENTATION_0;
+				}
+			}
+			
+			drm_log.infof("Rotation shader will apply %d° rotation", (int)g_eDRMRotationShaderOrientation * 90);
+			
+			// Tell DRM to use 0° (no hardware rotation), shader will handle it
+			m_ChosenOrientation = GAMESCOPE_PANEL_ORIENTATION_0;
 			return;
 		}
         
@@ -3236,13 +3280,16 @@ bool drm_set_mode( struct drm_t *drm, const drmModeModeInfo *mode )
 		g_bRotated = false;
 		g_nOutputWidth = mode->hdisplay;
 		g_nOutputHeight = mode->vdisplay;
-
+		
+		// When using rotation shader, adjust logical dimensions based on desired rotation
 		if (g_bEnableDRMRotationShader) {
-			g_bRotated = true;
-			g_nOutputWidth = mode->vdisplay;
-			g_nOutputHeight = mode->hdisplay;
+			if (g_eDRMRotationShaderOrientation == GAMESCOPE_PANEL_ORIENTATION_90 ||
+			    g_eDRMRotationShaderOrientation == GAMESCOPE_PANEL_ORIENTATION_270) {
+				// For 90/270 rotation, games see landscape (swapped dimensions)
+				g_bRotated = true;
+				std::swap(g_nOutputWidth, g_nOutputHeight);
+			}
 		}
-
 		break;
 	case GAMESCOPE_PANEL_ORIENTATION_90:
 	case GAMESCOPE_PANEL_ORIENTATION_270:

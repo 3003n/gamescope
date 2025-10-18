@@ -2769,6 +2769,13 @@ static void apply_touchscreen_orientation(double *x, double *y )
 	{
 		orientation = GetBackend()->GetCurrentConnector()->GetCurrentOrientation();
 	}
+	
+	// If using rotation shader, use the shader's rotation orientation instead
+	if (g_bEnableDRMRotationShader)
+	{
+		orientation = g_eDRMRotationShaderOrientation;
+	}
+	
 	switch ( orientation )
 	{
 		default:
@@ -2789,11 +2796,6 @@ static void apply_touchscreen_orientation(double *x, double *y )
 			tx = *y;
 			ty = 1.0 - *x;
 			break;
-	}
-
-	if (g_bEnableDRMRotationShader) {
-		tx = 1.0 - *y;
-		ty = *x;
 	}
 
 	*x = tx;
