@@ -168,7 +168,7 @@ namespace gamescope
             {
                 std::shared_lock lock{ m_mutInit };
                 if ( m_bInittedChild )
-                    return m_pChild->PollState() || m_bJustInittedPoll;
+                    return m_pChild->PollState() || m_bJustInittedPoll.exchange( false );
             }
 			return false;
 		}
