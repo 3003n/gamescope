@@ -181,6 +181,7 @@ bool b_bForceFrameLimit = false;
 bool g_bRefreshHalveEnable = false;
 bool g_bDPMS = false;
 bool g_bDPMS_set = false;
+bool g_HDR_requested = false;
 
 namespace gamescope
 {
@@ -477,7 +478,7 @@ update_color_mgmt()
 		return;
 
 	GetBackend()->GetCurrentConnector()->GetNativeColorimetry(
-		g_bOutputHDREnabled,
+		g_bOutputHDREnabled && g_HDR_requested,
 		&g_ColorMgmt.pending.displayColorimetry, &g_ColorMgmt.pending.displayEOTF,
 		&g_ColorMgmt.pending.outputEncodingColorimetry, &g_ColorMgmt.pending.outputEncodingEOTF );
 
@@ -6750,6 +6751,8 @@ void handle_presented_for_window( steamcompmgr_win_t* w )
 			w->last_commit_present_time = lastCommit->present_time;
 		}
 
+		w->bHasHDRColorspace = ColorspaceIsHDR(lastCommit->colorspace());
+
 		if (!lastCommit->presentation_feedbacks.empty() || lastCommit->present_id)
 		{
 			if (!lastCommit->presentation_feedbacks.empty())
@@ -8361,6 +8364,26 @@ steamcompmgr_main(int argc, char **argv)
 		}
 
 		g_uCompositeDebug = cv_composite_debug;
+
+		// Check if any running app has requested an hdr colorspace
+		g_HDR_requested = false;
+		{
+			gamescope_xwayland_server_t *server = NULL;
+			for (size_t i = 0; (server = wlserver_get_xwayland_server(i)); i++)
+			{
+				for (steamcompmgr_win_t *w = server->ctx->list; w; w = w->xwayland().next)
+				{
+					if (w->bHasHDRColorspace)
+						g_HDR_requested = true;
+				}
+			}
+
+			for ( const auto& xdg_win : g_steamcompmgr_xdg_wins )
+			{
+				if (xdg_win->bHasHDRColorspace)
+					g_HDR_requested = true;
+			}
+		}
 
 		g_bOutputHDREnabled = (g_bSupportsHDR_CachedValue || g_bForceHDR10OutputDebug) && cv_hdr_enabled;
 
