@@ -181,6 +181,7 @@ bool b_bForceFrameLimit = false;
 bool g_bRefreshHalveEnable = false;
 bool g_bDPMS = false;
 bool g_bDPMS_set = false;
+bool g_bOutputHDRSupported = false;
 
 namespace gamescope
 {
@@ -6750,6 +6751,8 @@ void handle_presented_for_window( steamcompmgr_win_t* w )
 			w->last_commit_present_time = lastCommit->present_time;
 		}
 
+		w->bHasHDRColorspace = ColorspaceIsHDR(lastCommit->colorspace());
+
 		if (!lastCommit->presentation_feedbacks.empty() || lastCommit->present_id)
 		{
 			if (!lastCommit->presentation_feedbacks.empty())
@@ -8362,14 +8365,35 @@ steamcompmgr_main(int argc, char **argv)
 
 		g_uCompositeDebug = cv_composite_debug;
 
-		g_bOutputHDREnabled = (g_bSupportsHDR_CachedValue || g_bForceHDR10OutputDebug) && cv_hdr_enabled;
+		// Check if any running app has requested an hdr colorspace
+		// and only if it has, enable hdr output
+		bool hdr_requested = false;
+		{
+			gamescope_xwayland_server_t *server = NULL;
+			for (size_t i = 0; (server = wlserver_get_xwayland_server(i)); i++)
+			{
+				for (steamcompmgr_win_t *w = server->ctx->list; w; w = w->xwayland().next)
+				{
+					if (w->bHasHDRColorspace)
+						hdr_requested = true;
+				}
+			}
+
+			for ( const auto& xdg_win : g_steamcompmgr_xdg_wins )
+			{
+				if (xdg_win->bHasHDRColorspace)
+					hdr_requested = true;
+			}
+		}
+		g_bOutputHDRSupported = (g_bSupportsHDR_CachedValue || g_bForceHDR10OutputDebug) && cv_hdr_enabled;
+		g_bOutputHDREnabled = g_bOutputHDRSupported && hdr_requested;
 
 		// Pick our width/height for this potential frame, regardless of how it might change later
 		// At some point we might even add proper locking so we get real updates atomically instead
 		// of whatever jumble of races the below might cause over a couple of frames
 		if ( currentOutputWidth != g_nOutputWidth ||
 			 currentOutputHeight != g_nOutputHeight ||
-			 currentHDROutput != g_bOutputHDREnabled ||
+			 currentHDROutput != g_bOutputHDRSupported ||
 			 currentHDRForce != g_bForceHDRSupportDebug )
 		{
 			if ( steamMode && g_nXWaylandCount > 1 )
@@ -8399,7 +8423,7 @@ steamcompmgr_main(int argc, char **argv)
 				gamescope_xwayland_server_t *server = NULL;
 				for (size_t i = 0; (server = wlserver_get_xwayland_server(i)); i++)
 				{
-					uint32_t hdr_value = ( g_bOutputHDREnabled || g_bForceHDRSupportDebug ) ? 1 : 0;
+					uint32_t hdr_value = ( g_bOutputHDRSupported || g_bForceHDRSupportDebug ) ? 1 : 0;
 					XChangeProperty(server->ctx->dpy, server->ctx->root, server->ctx->atoms.gamescopeHDROutputFeedback, XA_CARDINAL, 32, PropModeReplace,
 						(unsigned char *)&hdr_value, 1 );
 
@@ -8418,7 +8442,7 @@ steamcompmgr_main(int argc, char **argv)
 
 			currentOutputWidth = g_nOutputWidth;
 			currentOutputHeight = g_nOutputHeight;
-			currentHDROutput = g_bOutputHDREnabled;
+			currentHDROutput = g_bOutputHDRSupported;
 			currentHDRForce = g_bForceHDRSupportDebug;
 
 #if HAVE_PIPEWIRE

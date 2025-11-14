@@ -3115,14 +3115,14 @@ bool vulkan_supports_hdr10()
 	return false;
 }
 
-extern bool g_bOutputHDREnabled;
+extern bool g_bOutputHDRSupported;
 
 bool vulkan_make_swapchain( VulkanOutput_t *pOutput )
 {
 	uint32_t imageCount = pOutput->surfaceCaps.minImageCount + 1;
 	uint32_t formatCount = pOutput->surfaceFormats.size();
 	uint32_t surfaceFormat = formatCount;
-	VkColorSpaceKHR preferredColorSpace = g_bOutputHDREnabled ? VK_COLOR_SPACE_HDR10_ST2084_EXT : VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+	VkColorSpaceKHR preferredColorSpace = g_bOutputHDRSupported ? VK_COLOR_SPACE_HDR10_ST2084_EXT : VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 
 	if ( surfaceFormat == formatCount )
 	{
