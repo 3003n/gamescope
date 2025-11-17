@@ -2560,7 +2560,8 @@ drm_prepare_liftoff( struct drm_t *drm, const struct FrameInfo_t *frameInfo, boo
 		if ( i < frameInfo->layerCount )
 		{
 			const FrameInfo_t::Layer_t *pLayer = &frameInfo->layers[ i ];
-			gamescope::CDRMFb *pDrmFb = static_cast<gamescope::CDRMFb *>( pLayer->tex ? pLayer->tex->GetBackendFb()->Unwrap() : nullptr );
+			auto pBackendFb = pLayer->tex ? pLayer->tex->GetBackendFb() : nullptr;
+			gamescope::CDRMFb *pDrmFb = pBackendFb ? static_cast<gamescope::CDRMFb *>( pBackendFb->Unwrap() ) : nullptr;
 
 			if ( pDrmFb == nullptr )
 			{
