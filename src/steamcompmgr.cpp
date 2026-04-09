@@ -8634,7 +8634,9 @@ steamcompmgr_main(int argc, char **argv)
 			}
 		}
 		g_bOutputHDREnabled = hdr_supported &&
-			(hdr_requested || GetBackend()->GetCurrentConnector()->GetScreenType() != gamescope::GAMESCOPE_SCREEN_TYPE_INTERNAL);
+			(hdr_requested ||
+			!GetBackend()->GetCurrentConnector() ||
+			GetBackend()->GetCurrentConnector()->GetScreenType() != gamescope::GAMESCOPE_SCREEN_TYPE_INTERNAL);
 
 		// Pick our width/height for this potential frame, regardless of how it might change later
 		// At some point we might even add proper locking so we get real updates atomically instead
