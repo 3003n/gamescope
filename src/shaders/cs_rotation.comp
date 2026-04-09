@@ -20,20 +20,47 @@ vec4 sampleLayer(uint layerIdx, vec2 uv) {
 }
 
 void main() {
-    uvec2 coord = uvec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);
+    // coord is output pixel position (based on physical screen dimensions)
+    uvec2 outCoord = uvec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);
     uvec2 outSize = imageSize(dst);
-    float outWidth = outSize.y;
-    float outHeight = outSize.x;
-
-    vec2 uv = vec2(coord);
+    
+    // Calculate input sampling coordinates (based on logical/game dimensions)
+    // Input textures are in logical orientation, output is in physical orientation
+    // Enum values: 0=PANEL_ORIENTATION_0, 1=PANEL_ORIENTATION_270, 2=PANEL_ORIENTATION_90, 3=PANEL_ORIENTATION_180
+    vec2 sampleCoord;
+    
+    switch (u_rotation) {
+        case 0u: // GAMESCOPE_PANEL_ORIENTATION_0 - 0° - no rotation
+            sampleCoord = vec2(outCoord.x, outCoord.y);
+            break;
+            
+        case 1u: // GAMESCOPE_PANEL_ORIENTATION_270 - 270° CCW
+            // Physical pixel (x, y) comes from logical pixel (y, height-1-x)
+            sampleCoord = vec2(outCoord.y, outSize.x - outCoord.x - 1);
+            break;
+            
+        case 2u: // GAMESCOPE_PANEL_ORIENTATION_90 - 90° CCW
+            // Physical pixel (x, y) comes from logical pixel (width-1-y, x)
+            sampleCoord = vec2(outSize.y - outCoord.y - 1, outCoord.x);
+            break;
+            
+        case 3u: // GAMESCOPE_PANEL_ORIENTATION_180 - 180°
+            sampleCoord = vec2(outSize.x - outCoord.x - 1, outSize.y - outCoord.y - 1);
+            break;
+            
+        default:
+            sampleCoord = vec2(outCoord.x, outCoord.y);
+            break;
+    }
+    
     vec4 outputValue = vec4(255.0f);
 
     if (c_layerCount > 0) {
-        outputValue = sampleLayer(0, uv) * u_opacity[0];
+        outputValue = sampleLayer(0, sampleCoord) * u_opacity[0];
     }
 
     for (int i = 1; i < c_layerCount; i++) {
-        vec4 layerColor = sampleLayer(i, uv);
+        vec4 layerColor = sampleLayer(i, sampleCoord);
         // wl_surfaces come with premultiplied alpha, so that's them being
         // premultiplied by layerColor.a.
         // We need to then multiply that by the layer's opacity to get to our
@@ -46,8 +73,5 @@ void main() {
 
     outputValue.rgb = encodeOutputColor(outputValue.rgb);
 
-    // Rotate the pixel coordinates counter-clockwise by 90 degrees
-    ivec2 rotatedCoord = ivec2(coord.y, outWidth - coord.x - 1);
-
-    imageStore(dst, rotatedCoord, outputValue);
+    imageStore(dst, ivec2(outCoord), outputValue);
 }

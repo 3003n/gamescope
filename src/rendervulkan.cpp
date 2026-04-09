@@ -3293,9 +3293,14 @@ static bool vulkan_make_output_images( VulkanOutput_t *pOutput )
 	uint32_t l_nOutputWidth = g_nOutputWidth;
 	uint32_t l_nOutputHeight = g_nOutputHeight;
 
+	// When using rotation shader, output image needs physical screen dimensions
+	// while g_nOutputWidth/Height are logical (game-facing) dimensions
 	if (g_bEnableDRMRotationShader) {
-		l_nOutputWidth = g_nOutputHeight;
-		l_nOutputHeight = g_nOutputWidth;
+		if (g_eDRMRotationShaderOrientation == GAMESCOPE_PANEL_ORIENTATION_90 ||
+		    g_eDRMRotationShaderOrientation == GAMESCOPE_PANEL_ORIENTATION_270) {
+			// Swap back to get physical dimensions
+			std::swap(l_nOutputWidth, l_nOutputHeight);
+		}
 	}
 
 	pOutput->outputImages[0] = new CVulkanTexture();
@@ -3722,8 +3727,10 @@ struct BlitPushData_t
     float u_nitsToLinear; // unset
     float u_itmSdrNits; // unset
     float u_itmTargetNits; // unset
+    
+    uint32_t u_rotation; // rotation angle
 
-	explicit BlitPushData_t(const struct FrameInfo_t *frameInfo)
+	explicit BlitPushData_t(const struct FrameInfo_t *frameInfo, GamescopePanelOrientation rotation = GAMESCOPE_PANEL_ORIENTATION_0)
 	{
 		u_shaderFilter = 0;
 		u_alphaMode = 0;
@@ -3763,9 +3770,11 @@ struct BlitPushData_t
 		u_nitsToLinear = 1.0f / g_flInternalDisplayBrightnessNits;
 		u_itmSdrNits = g_flHDRItmSdrNits;
 		u_itmTargetNits = g_flHDRItmTargetNits;
+		
+		u_rotation = static_cast<uint32_t>(rotation);
 	}
 
-	explicit BlitPushData_t(float blit_scale) {
+	explicit BlitPushData_t(float blit_scale, GamescopePanelOrientation rotation = GAMESCOPE_PANEL_ORIENTATION_0) {
 		scale[0] = { blit_scale, blit_scale };
 		offset[0] = { 0.5f, 0.5f };
 		opacity[0] = 1.0f;
@@ -3784,6 +3793,8 @@ struct BlitPushData_t
 		u_nitsToLinear = 1.0f / g_flInternalDisplayBrightnessNits;
 		u_itmSdrNits = g_flHDRItmSdrNits;
 		u_itmTargetNits = g_flHDRItmTargetNits;
+		
+		u_rotation = static_cast<uint32_t>(rotation);
 	}
 };
 
@@ -4200,14 +4211,21 @@ std::optional<uint64_t> vulkan_composite( struct FrameInfo_t *frameInfo, gamesco
 	else
 	{
 		if (applyRotation) {
+			GamescopePanelOrientation rotationAngle = g_bEnableDRMRotationShader ? g_eDRMRotationShaderOrientation : GAMESCOPE_PANEL_ORIENTATION_0;
+			
 			cmdBuffer->bindPipeline( g_device.pipeline(SHADER_TYPE_ROTATION, frameInfo->layerCount, frameInfo->ycbcrMask(), 0u, frameInfo->colorspaceMask(), outputTF ));
 			bind_all_layers(cmdBuffer.get(), frameInfo);
 			cmdBuffer->bindTarget(compositeImage);
-			cmdBuffer->uploadConstants<BlitPushData_t>(frameInfo);
+			
+			BlitPushData_t constants(frameInfo, rotationAngle);
+			cmdBuffer->uploadConstants<BlitPushData_t>(constants);
 
 			const int pixelsPerGroup = 8;
 
-			cmdBuffer->dispatch(div_roundup(currentOutputWidth, pixelsPerGroup), div_roundup(currentOutputHeight, pixelsPerGroup));
+			// Dispatch based on output image size, not logical size
+			uint32_t dispatchWidth = compositeImage->width();
+			uint32_t dispatchHeight = compositeImage->height();
+			cmdBuffer->dispatch(div_roundup(dispatchWidth, pixelsPerGroup), div_roundup(dispatchHeight, pixelsPerGroup));
 		} else {
 			cmdBuffer->bindPipeline( g_device.pipeline(SHADER_TYPE_BLIT, frameInfo->layerCount, frameInfo->ycbcrMask(), 0u, frameInfo->colorspaceMask(), outputTF ));
 			bind_all_layers(cmdBuffer.get(), frameInfo);
@@ -4223,6 +4241,8 @@ std::optional<uint64_t> vulkan_composite( struct FrameInfo_t *frameInfo, gamesco
 	if (applyRotation)
 	{
 		if (g_output.rotatedOutput != nullptr) {
+			GamescopePanelOrientation rotationAngle = g_bEnableDRMRotationShader ? g_eDRMRotationShaderOrientation : GAMESCOPE_PANEL_ORIENTATION_0;
+			
 			// Rotate the final output
 			// TODO: may need rework with another rotation shader for blur, fsr and nis
 			cmdBuffer->bindPipeline( g_device.pipeline(SHADER_TYPE_ROTATION, frameInfo->layerCount, frameInfo->ycbcrMask(), 0u, frameInfo->colorspaceMask(), outputTF));
@@ -4238,7 +4258,9 @@ std::optional<uint64_t> vulkan_composite( struct FrameInfo_t *frameInfo, gamesco
 			// }
 
 			cmdBuffer->bindTarget(compositeImage);
-			cmdBuffer->uploadConstants<BlitPushData_t>(frameInfo);
+			
+			BlitPushData_t constants(frameInfo, rotationAngle);
+			cmdBuffer->uploadConstants<BlitPushData_t>(constants);
 
 			const int pixelsPerGroup = 8;
 
