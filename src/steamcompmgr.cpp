@@ -5674,6 +5674,15 @@ static bool steamcompmgr_should_vblank_window( bool bShouldLimitFPS, uint64_t vb
 					s_oLowestFPSLimitScheduleVRR = std::min( *s_oLowestFPSLimitScheduleVRR, schedule );
 			}
 		}
+		else if ( w && w->IsAnyOverlay() )
+		{
+			// Throttle overlays to the output refresh rate with VRR. Without this, overlays
+			// render at an uncapped rate because vblank is forced true every loop iteration.
+			uint64_t ulRefreshCycle = gamescope::mHzToRefreshCycle( g_nNestedRefresh ? g_nNestedRefresh : g_nOutputRefresh );
+
+			if ( now < w->last_commit_first_latch_time + ulRefreshCycle )
+				bSendCallback = false;
+		}
 	}
 	else
 	{
