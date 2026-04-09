@@ -153,6 +153,8 @@ gamescope_color_mgmt_luts g_ScreenshotColorMgmtLutsHDR[ EOTF_Count ];
 static lut1d_t g_tmpLut1d;
 static lut3d_t g_tmpLut3d;
 
+extern bool disableInternalPq;
+
 extern int g_nDynamicRefreshHz;
 
 bool g_bForceHDRSupportDebug = false;
@@ -8204,6 +8206,8 @@ steamcompmgr_main(int argc, char **argv)
 					g_bForceHDR10OutputDebug = true;
 				} else if (strcmp(opt_name, "hdr-itm-enabled") == 0 || strcmp(opt_name, "hdr-itm-enable") == 0) {
 					g_bHDRItmEnable = true;
+				} else if (strcmp(opt_name, "hdr-pq-internal-enable") == 0) {
+					disableInternalPq = false;
 				} else if (strcmp(opt_name, "sdr-gamut-wideness") == 0) {
 					g_ColorMgmt.pending.sdrGamutWideness = atof(optarg);
 				} else if (strcmp(opt_name, "hdr-sdr-content-nits") == 0) {
