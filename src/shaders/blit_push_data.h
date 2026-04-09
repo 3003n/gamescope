@@ -16,5 +16,8 @@ uniform layers_t {
     float u_nitsToLinear; // hdr -> sdr
     float u_itmSdrNits;
     float u_itmTargetNits;
+    
+    // rotation
+    uint u_rotation; // 0=0°, 1=90°, 2=180°, 3=270°
 };
 
